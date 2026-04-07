@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vision Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <!-- Chart.js for history graph -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ── Top Navbar ──────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <a class="navbar-brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/>
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+    </svg>
+    Vision Dashboard
+  </a>
+  <div class="navbar-title"></div>
+  <div class="navbar-actions">
+    <span id="plc-status-badge" class="status-dot disconnected">
+      <span class="dot"></span><span class="label">PLC Disconnected</span>
+    </span>
+    <span id="last-update" class="last-update">—</span>
+    <a href="/settings.html" class="btn-icon" title="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<!-- ── Main layout ─────────────────────────────────────────────────────────── -->
+<div class="main-layout" style="margin-top:84px">
+
+  <!-- Read status indicators -->
+  <div>
+    <p class="section-title">Last Read Result</p>
+    <div class="read-status-row">
+      <div class="read-indicator" id="indicator-good">
+        <div class="ind-icon">✅</div>
+        <div>
+          <div class="ind-label">Good Read</div>
+          <div class="ind-state" id="good-state">Waiting…</div>
+        </div>
+      </div>
+      <div class="read-indicator" id="indicator-bad">
+        <div class="ind-icon">❌</div>
+        <div>
+          <div class="ind-label">Bad Read</div>
+          <div class="ind-state" id="bad-state">Waiting…</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+        <span class="section-title" style="margin-bottom:0">Vision:</span>
+        <span id="vision-badge" class="vision-badge disabled">Disabled</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics row -->
+  <div>
+    <p class="section-title">Production Metrics</p>
+    <div class="metrics-grid">
+      <div class="metric-card card-green">
+        <span class="metric-icon">✅</span>
+        <div class="metric-label">Good Reads</div>
+        <div class="metric-value" id="val-goodReads">—</div>
+        <div class="metric-subtitle">Successful scans</div>
+      </div>
+      <div class="metric-card card-red">
+        <span class="metric-icon">❌</span>
+        <div class="metric-label">Bad Reads</div>
+        <div class="metric-value" id="val-badReads">—</div>
+        <div class="metric-subtitle">Failed scans</div>
+      </div>
+      <div class="metric-card card-blue">
+        <span class="metric-icon">📦</span>
+        <div class="metric-label">Total Bags</div>
+        <div class="metric-value" id="val-totalBags">—</div>
+        <div class="metric-subtitle">Processed units</div>
+      </div>
+      <div class="metric-card card-cyan">
+        <span class="metric-icon">🏷️</span>
+        <div class="metric-label">Current Batch</div>
+        <div class="metric-value" id="val-currentBatch">—</div>
+        <div class="metric-subtitle">Active batch ID</div>
+      </div>
+      <div class="metric-card card-purple">
+        <span class="metric-icon">🔗</span>
+        <div class="metric-label">MES Batch</div>
+        <div class="metric-value" id="val-mesBatch">—</div>
+        <div class="metric-subtitle">MES reference</div>
+      </div>
+      <div class="metric-card card-yellow">
+        <span class="metric-icon">🔎</span>
+        <div class="metric-label">OCR Code</div>
+        <div class="metric-value" id="val-actualBatchCodeOCR" style="font-size:1.4rem">—</div>
+        <div class="metric-subtitle">Last read code</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Good/bad ratio progress bar -->
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-title">Read Quality Rate</span>
+      <span class="progress-pct" id="quality-pct">—%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="quality-bar"></div>
+    </div>
+    <div class="progress-sub">
+      <span id="progress-good-label">Good: —</span>
+      <span id="progress-total-label">Total: —</span>
+    </div>
+  </div>
+
+  <!-- Camera + Batch detail -->
+  <div class="two-col">
+
+    <!-- Camera feed -->
+    <div class="camera-panel">
+      <div class="camera-header">
+        <div class="camera-header-left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          </svg>
+          Zebra FS42 · <span id="camera-ip-label" style="font-family:monospace;font-size:0.78rem">192.168.1.73</span>
+        </div>
+        <div id="camera-status" class="status-dot disconnected">
+          <span class="dot"></span><span>Offline</span>
+        </div>
+      </div>
+      <div class="camera-body">
+        <canvas id="camera-canvas"></canvas>
+        <div class="camera-overlay" id="camera-overlay">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          </svg>
+          <span id="camera-overlay-text">Connecting to camera…</span>
+          <div class="camera-url" id="camera-url-display">rtsp://192.168.1.73/LiveStream</div>
+        </div>
+        <div class="camera-live-badge hidden" id="live-badge">
+          <span class="live-dot"></span> LIVE
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch / trigger detail -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="info-panel">
+        <div class="info-panel-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Trigger &amp; Scan Info
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Trigger Offset</span>
+          <span class="info-row-value" id="val-triggerOffset">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Enable Vision</span>
+          <span class="info-row-value" id="val-enableVision">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Actual OCR Code</span>
+          <span class="info-row-value" id="val-ocrDetail">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Current Batch</span>
+          <span class="info-row-value" id="val-currentBatchDetail">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">MES Batch</span>
+          <span class="info-row-value" id="val-mesBatchDetail">—</span>
+        </div>
+      </div>
+
+      <!-- Mini trend chart -->
+      <div class="chart-panel">
+        <div class="info-panel-title" style="margin-bottom:12px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Read History (last 30 points)
+        </div>
+        <canvas id="history-chart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Toast container ─────────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- Socket.io + jsmpeg + app -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/jsmpeg.min.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

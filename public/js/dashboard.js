@@ -60,11 +60,7 @@ const els = {
 
   cameraStatus:     document.getElementById('camera-status'),
   cameraIpLabel:    document.getElementById('camera-ip-label'),
-  cameraUrlDisplay: document.getElementById('camera-url-display'),
-  cameraOverlay:    document.getElementById('camera-overlay'),
-  cameraOverlayText:document.getElementById('camera-overlay-text'),
-  liveBadge:        document.getElementById('live-badge'),
-  cameraCanvas:     document.getElementById('camera-canvas'),
+  cameraIframe:     document.getElementById('camera-iframe'),
 };
 
 /* ── PLC status ──────────────────────────────────────────────────────────── */
@@ -227,67 +223,27 @@ function pushHistory(good, bad) {
   historyChart.update('none');
 }
 
-/* ── Camera stream (jsmpeg over WebSocket) ───────────────────────────────── */
+/* ── Camera (iframe) ─────────────────────────────────────────────────────── */
 
-let jsmpegPlayer = null;
-let cameraConnected = false;
+const CAMERA_IFRAME_URL = 'http://192.168.1.173/livemonitor';
 
-function initCamera(settings) {
-  if (els.cameraUrlDisplay) {
-    els.cameraUrlDisplay.textContent = settings.cameraRtspUrl || '—';
-  }
-
-  // Extract host for display
-  try {
-    const url = new URL(settings.cameraRtspUrl || 'rtsp://192.168.1.73');
-    if (els.cameraIpLabel) els.cameraIpLabel.textContent = url.hostname;
-  } catch (_) {}
-
-  if (!els.cameraCanvas) return;
-  if (!window.JSMpeg) {
-    if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'jsmpeg not loaded';
-    return;
-  }
-
-  // Destroy previous player
-  if (jsmpegPlayer) {
-    try { jsmpegPlayer.destroy(); } catch (_) {}
-    jsmpegPlayer = null;
-  }
-
-  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProto}//${location.host}/camera-stream`;
-
-  if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Connecting to camera stream…';
-  if (els.cameraOverlay) els.cameraOverlay.classList.remove('hidden');
-  if (els.liveBadge) els.liveBadge.classList.add('hidden');
-
-  jsmpegPlayer = new window.JSMpeg.Player(wsUrl, {
-    canvas: els.cameraCanvas,
-    autoplay: true,
-    audio: false,
-    onSourceEstablished: () => {
-      cameraConnected = true;
+function initCamera() {
+  if (els.cameraIpLabel) els.cameraIpLabel.textContent = '192.168.1.173';
+  if (els.cameraIframe) {
+    els.cameraIframe.src = CAMERA_IFRAME_URL;
+    els.cameraIframe.addEventListener('load', () => {
       if (els.cameraStatus) {
         els.cameraStatus.className = 'status-dot connected';
         els.cameraStatus.querySelector('span:last-child').textContent = 'Live';
       }
-      if (els.cameraOverlay) els.cameraOverlay.classList.add('hidden');
-      if (els.liveBadge) els.liveBadge.classList.remove('hidden');
-    },
-    onSourceCompleted: () => {
-      cameraConnected = false;
+    }, { once: true });
+    els.cameraIframe.addEventListener('error', () => {
       if (els.cameraStatus) {
         els.cameraStatus.className = 'status-dot disconnected';
         els.cameraStatus.querySelector('span:last-child').textContent = 'Offline';
       }
-      if (els.cameraOverlay) {
-        els.cameraOverlay.classList.remove('hidden');
-        if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Stream ended – reconnecting…';
-      }
-      if (els.liveBadge) els.liveBadge.classList.add('hidden');
-    },
-  });
+    }, { once: true });
+  }
 }
 
 /* ── Socket.io ───────────────────────────────────────────────────────────── */
@@ -392,17 +348,11 @@ async function confirmNewBatch() {
 
 /* ── Init ────────────────────────────────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   initChart();
 
-  // Fetch settings and init camera
-  try {
-    const res = await fetch('/api/settings');
-    const settings = await res.json();
-    initCamera(settings);
-  } catch (e) {
-    initCamera({ cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream' });
-  }
+  // Init camera iframe
+  initCamera();
 
   // New Batch button
   const newBatchBtn = document.getElementById('new-batch-btn');

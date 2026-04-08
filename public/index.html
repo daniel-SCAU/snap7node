@@ -140,24 +140,14 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
           </svg>
-          Zebra FS42 · <span id="camera-ip-label" style="font-family:monospace;font-size:0.78rem">192.168.1.73</span>
+          Live Monitor · <span id="camera-ip-label" style="font-family:monospace;font-size:0.78rem">192.168.1.173</span>
         </div>
         <div id="camera-status" class="status-dot disconnected">
           <span class="dot"></span><span>Offline</span>
         </div>
       </div>
       <div class="camera-body">
-        <canvas id="camera-canvas"></canvas>
-        <div class="camera-overlay" id="camera-overlay">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
-          </svg>
-          <span id="camera-overlay-text">Connecting to camera…</span>
-          <div class="camera-url" id="camera-url-display">rtsp://192.168.1.73/LiveStream</div>
-        </div>
-        <div class="camera-live-badge hidden" id="live-badge">
-          <span class="live-dot"></span> LIVE
-        </div>
+        <iframe id="camera-iframe" src="http://192.168.1.173/livemonitor" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>
       </div>
     </div>
 
@@ -261,9 +251,8 @@
 <!-- ── Toast container ─────────────────────────────────────────────────────── -->
 <div id="toast-container"></div>
 
-<!-- Socket.io + jsmpeg + app -->
+<!-- Socket.io + app -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="/js/jsmpeg.min.js"></script>
 <script src="/js/dashboard.js"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
   plcIp: '192.168.1.10',
   plcRack: 0,
   plcSlot: 1,
+  cameraIp: '192.168.1.73',
   cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream',
   pollIntervalMs: 1000,
 };

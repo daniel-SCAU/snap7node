@@ -21,6 +21,7 @@ const DEFAULTS = {
   plcIp: '192.168.1.10',
   plcRack: 0,
   plcSlot: 1,
+  cameraIp: '192.168.1.73',
   cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream',
   pollIntervalMs: 1000,
 };
@@ -32,10 +33,31 @@ const fields = {
   plcRack:       document.getElementById('plcRack'),
   plcSlot:       document.getElementById('plcSlot'),
   pollIntervalMs:document.getElementById('pollIntervalMs'),
+  cameraIp:      document.getElementById('cameraIp'),
   cameraRtspUrl: document.getElementById('cameraRtspUrl'),
 };
 
+
 const systemEnableToggle = document.getElementById('systemEnable');
+=======
+/* ── Camera IP ↔ RTSP URL sync ───────────────────────────────────────────── */
+
+/** Replace the host (IP) portion inside an RTSP URL, leaving credentials / path intact. */
+function replaceRtspIp(rtspUrl, newIp) {
+  return rtspUrl.replace(/(rtsp:\/\/(?:[^@]*@)?)([\d.]+)(.*)/i, `$1${newIp}$3`);
+}
+
+/** Returns true if the string is a valid IPv4 address. */
+function isValidIpv4(ip) {
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
+    ip.split('.').every((n) => Number(n) >= 0 && Number(n) <= 255);
+}
+
+/** Extract the host (IP) portion from an RTSP URL. Returns empty string on no match or invalid IP. */
+function extractRtspIp(rtspUrl) {
+  const m = rtspUrl.match(/rtsp:\/\/(?:[^@]*@)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/i);
+  return m && isValidIpv4(m[1]) ? m[1] : '';
+}
 
 /* ── Load settings ───────────────────────────────────────────────────────── */
 
@@ -52,6 +74,10 @@ async function loadSettings() {
 }
 
 function applyToForm(data) {
+  // If cameraIp is not stored yet, derive it from the RTSP URL
+  if (!data.cameraIp && data.cameraRtspUrl) {
+    data = Object.assign({}, data, { cameraIp: extractRtspIp(data.cameraRtspUrl) });
+  }
   for (const [key, el] of Object.entries(fields)) {
     if (el && data[key] !== undefined) {
       el.value = data[key];
@@ -161,8 +187,31 @@ document.addEventListener('DOMContentLoaded', () => {
     code.addEventListener('click', () => {
       if (fields.cameraRtspUrl) {
         fields.cameraRtspUrl.value = code.textContent.trim();
+        if (fields.cameraIp) {
+          fields.cameraIp.value = extractRtspIp(fields.cameraRtspUrl.value);
+        }
         showToast('URL selected', 'info', 1500);
       }
     });
   });
+
+  // Camera IP → RTSP URL (update on blur so partial addresses are not propagated)
+  if (fields.cameraIp) {
+    fields.cameraIp.addEventListener('blur', () => {
+      const newIp = fields.cameraIp.value.trim();
+      if (fields.cameraRtspUrl && isValidIpv4(newIp)) {
+        fields.cameraRtspUrl.value = replaceRtspIp(fields.cameraRtspUrl.value, newIp);
+      }
+    });
+  }
+
+  // RTSP URL → Camera IP (extract on blur so manual edits don't disrupt typing)
+  if (fields.cameraRtspUrl) {
+    fields.cameraRtspUrl.addEventListener('blur', () => {
+      if (fields.cameraIp) {
+        const extracted = extractRtspIp(fields.cameraRtspUrl.value);
+        if (extracted) fields.cameraIp.value = extracted;
+      }
+    });
+  }
 });

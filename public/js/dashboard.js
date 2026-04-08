@@ -318,6 +318,78 @@ socket.on('plcData', ({ status, data }) => {
   }
 });
 
+/* ── New Batch virtual keypad ────────────────────────────────────────────── */
+
+let keypadValue = '0';
+
+function openBatchModal() {
+  keypadValue = '0';
+  updateKeypadDisplay();
+  const modal = document.getElementById('batch-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('visible');
+  }
+}
+
+function closeBatchModal() {
+  const modal = document.getElementById('batch-modal');
+  if (modal) {
+    modal.classList.remove('visible');
+    modal.classList.add('hidden');
+  }
+}
+
+function updateKeypadDisplay() {
+  const display = document.getElementById('keypad-display');
+  if (display) display.textContent = keypadValue;
+}
+
+function keypadPress(key) {
+  if (keypadValue === '0') {
+    keypadValue = key;
+  } else {
+    if (keypadValue.length < 10) {
+      const next = keypadValue + key;
+      if (parseInt(next, 10) <= 2147483647) keypadValue = next;
+    }
+  }
+  updateKeypadDisplay();
+}
+
+function keypadBackspace() {
+  if (keypadValue.length <= 1) {
+    keypadValue = '0';
+  } else {
+    keypadValue = keypadValue.slice(0, -1);
+  }
+  updateKeypadDisplay();
+}
+
+async function confirmNewBatch() {
+  const num = parseInt(keypadValue, 10);
+  if (!Number.isFinite(num) || num < -2147483648 || num > 2147483647) {
+    showToast('Value must be a valid 32-bit integer (−2 147 483 648 to 2 147 483 647)', 'error');
+    return;
+  }
+  try {
+    const res = await fetch('/api/plc/mes-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: num }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast(`MES Batch set to ${num}`, 'success');
+      closeBatchModal();
+    } else {
+      showToast('Write failed: ' + json.error, 'error');
+    }
+  } catch (e) {
+    showToast('Write error: ' + e.message, 'error');
+  }
+}
+
 /* ── Init ────────────────────────────────────────────────────────────────── */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -330,5 +402,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     initCamera(settings);
   } catch (e) {
     initCamera({ cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream' });
+  }
+
+  // New Batch button
+  const newBatchBtn = document.getElementById('new-batch-btn');
+  if (newBatchBtn) newBatchBtn.addEventListener('click', openBatchModal);
+
+  const modalCloseBtn = document.getElementById('modal-close-btn');
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeBatchModal);
+
+  const modalCancelBtn = document.getElementById('modal-cancel-btn');
+  if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeBatchModal);
+
+  const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+  if (modalConfirmBtn) modalConfirmBtn.addEventListener('click', confirmNewBatch);
+
+  const keypadBackspaceBtn = document.getElementById('keypad-backspace');
+  if (keypadBackspaceBtn) keypadBackspaceBtn.addEventListener('click', keypadBackspace);
+
+  document.querySelectorAll('.keypad-btn[data-key]').forEach((btn) => {
+    btn.addEventListener('click', () => keypadPress(btn.dataset.key));
+  });
+
+  // Close modal on backdrop click
+  const modal = document.getElementById('batch-modal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeBatchModal();
+    });
   }
 });

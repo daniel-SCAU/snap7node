@@ -37,6 +37,47 @@ app.post('/api/settings', (req, res) => {
   }
 });
 
+// ─── PLC write API ────────────────────────────────────────────────────────────
+
+app.get('/api/plc/system-enable', async (req, res) => {
+  if (!plcClient.isConnected) {
+    return res.status(503).json({ ok: false, error: 'PLC not connected', value: null });
+  }
+  try {
+    const data = await plcClient.readAll();
+    res.json({ ok: true, value: data.enableVision });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message, value: null });
+  }
+});
+
+app.post('/api/plc/system-enable', async (req, res) => {
+  const { value } = req.body;
+  if (typeof value !== 'boolean') {
+    return res.status(400).json({ ok: false, error: 'value must be a boolean' });
+  }
+  try {
+    await plcClient.writeSystemEnable(value);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/plc/mes-batch', async (req, res) => {
+  const { value } = req.body;
+  const num = parseInt(value, 10);
+  if (!Number.isFinite(num)) {
+    return res.status(400).json({ ok: false, error: 'value must be an integer' });
+  }
+  try {
+    await plcClient.writeMesBatch(num);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ─── PLC polling ──────────────────────────────────────────────────────────────
 
 let plcPollTimer = null;

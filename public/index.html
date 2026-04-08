@@ -66,7 +66,15 @@
 
   <!-- Metrics row -->
   <div>
-    <p class="section-title">Production Metrics</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <p class="section-title" style="margin-bottom:0">Production Metrics</p>
+      <button class="btn btn-primary" id="new-batch-btn" style="gap:8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Batch
+      </button>
+    </div>
     <div class="metrics-grid">
       <div class="metric-card card-green">
         <span class="metric-icon">✅</span>
@@ -198,6 +206,56 @@
     </div>
   </div>
 
+</div>
+
+<!-- ── New Batch Modal ──────────────────────────────────────────────────────── -->
+<div id="batch-modal" class="modal-backdrop hidden">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <span class="modal-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Batch
+      </span>
+      <button class="modal-close" id="modal-close-btn" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">Enter the MES Batch number (writes to MD100)</p>
+      <div class="keypad-display" id="keypad-display">0</div>
+      <div class="keypad-grid">
+        <button class="keypad-btn" data-key="7">7</button>
+        <button class="keypad-btn" data-key="8">8</button>
+        <button class="keypad-btn" data-key="9">9</button>
+        <button class="keypad-btn" data-key="4">4</button>
+        <button class="keypad-btn" data-key="5">5</button>
+        <button class="keypad-btn" data-key="6">6</button>
+        <button class="keypad-btn" data-key="1">1</button>
+        <button class="keypad-btn" data-key="2">2</button>
+        <button class="keypad-btn" data-key="3">3</button>
+        <button class="keypad-btn keypad-btn-wide" data-key="0">0</button>
+        <button class="keypad-btn keypad-btn-action" id="keypad-backspace" aria-label="Backspace">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+            <line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Confirm
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Toast container ─────────────────────────────────────────────────────── -->

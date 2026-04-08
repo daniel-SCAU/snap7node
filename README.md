@@ -58,7 +58,6 @@ open http://localhost:3000
 ```
 
 The first time you run, go to **Settings** (⚙ icon top-right) and enter your PLC IP address and camera RTSP URL.
-
 ## Default Settings
 
 | Setting | Default |

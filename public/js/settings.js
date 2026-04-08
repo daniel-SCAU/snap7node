@@ -1,0 +1,118 @@
+'use strict';
+
+/* ── Toast helper ────────────────────────────────────────────────────────── */
+
+function showToast(msg, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toast-out 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+/* ── Defaults ────────────────────────────────────────────────────────────── */
+
+const DEFAULTS = {
+  plcIp: '192.168.1.10',
+  plcRack: 0,
+  plcSlot: 1,
+  cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream',
+  pollIntervalMs: 1000,
+};
+
+/* ── DOM refs ────────────────────────────────────────────────────────────── */
+
+const fields = {
+  plcIp:         document.getElementById('plcIp'),
+  plcRack:       document.getElementById('plcRack'),
+  plcSlot:       document.getElementById('plcSlot'),
+  pollIntervalMs:document.getElementById('pollIntervalMs'),
+  cameraRtspUrl: document.getElementById('cameraRtspUrl'),
+};
+
+/* ── Load settings ───────────────────────────────────────────────────────── */
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    applyToForm(data);
+  } catch (e) {
+    showToast('Could not load settings: ' + e.message, 'error');
+    applyToForm(DEFAULTS);
+  }
+}
+
+function applyToForm(data) {
+  for (const [key, el] of Object.entries(fields)) {
+    if (el && data[key] !== undefined) {
+      el.value = data[key];
+    }
+  }
+}
+
+/* ── Save settings ───────────────────────────────────────────────────────── */
+
+async function saveSettings() {
+  const payload = {};
+  for (const [key, el] of Object.entries(fields)) {
+    if (!el) continue;
+    const val = el.value.trim();
+    if (key === 'plcRack' || key === 'plcSlot' || key === 'pollIntervalMs') {
+      payload[key] = parseInt(val, 10) || 0;
+    } else {
+      payload[key] = val;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('Settings saved successfully', 'success');
+      const fb = document.getElementById('save-feedback');
+      if (fb) { fb.style.display = 'block'; setTimeout(() => (fb.style.display = 'none'), 4000); }
+    } else {
+      showToast('Save failed: ' + json.error, 'error');
+    }
+  } catch (e) {
+    showToast('Save error: ' + e.message, 'error');
+  }
+}
+
+/* ── Wire up events ──────────────────────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+
+  const saveBtn = document.getElementById('save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      applyToForm(DEFAULTS);
+      showToast('Form reset to defaults (not saved yet)', 'info');
+    });
+  }
+
+  // RTSP example clicks
+  document.querySelectorAll('.rtsp-example').forEach((code) => {
+    code.addEventListener('click', () => {
+      if (fields.cameraRtspUrl) {
+        fields.cameraRtspUrl.value = code.textContent.trim();
+        showToast('URL selected', 'info', 1500);
+      }
+    });
+  });
+});

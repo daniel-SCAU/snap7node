@@ -98,6 +98,29 @@
     </div>
   </div>
 
+  <!-- System controls -->
+  <div class="settings-card" style="animation-delay:0.2s">
+    <div class="settings-card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      System Controls
+    </div>
+
+    <div class="form-group" style="margin-bottom:0">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <label class="form-label" style="margin-bottom:2px">System Enable</label>
+          <p class="form-hint" style="margin-top:0">Controls PLC address M14.0 — enables or disables the system</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="systemEnable" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <!-- Actions -->
   <div class="btn-row">
     <button class="btn btn-primary" id="save-btn">

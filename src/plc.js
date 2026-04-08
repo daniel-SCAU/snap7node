@@ -141,6 +141,38 @@ class PlcClient {
     });
   }
 
+  /**
+   * Write the System Enable bit (M14.0).
+   */
+  writeSystemEnable(value) {
+    return new Promise((resolve, reject) => {
+      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._connected) return reject(new Error('PLC not connected'));
+      const buf = Buffer.alloc(1);
+      buf[0] = value ? 1 : 0;
+      this._client.WriteArea(AREA_MK, 0, 14 * 8 + 0, 1, WL_BIT, buf, (err) => {
+        if (err) return reject(new Error(`WriteArea M14.0 failed: ${this._client.ErrorText(err)}`));
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Write the MES Batch value (MD100, DInt).
+   */
+  writeMesBatch(value) {
+    return new Promise((resolve, reject) => {
+      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._connected) return reject(new Error('PLC not connected'));
+      const buf = Buffer.alloc(4);
+      buf.writeInt32BE(value, 0);
+      this._client.WriteArea(AREA_MK, 0, 100, 4, WL_BYTE, buf, (err) => {
+        if (err) return reject(new Error(`WriteArea MD100 failed: ${this._client.ErrorText(err)}`));
+        resolve();
+      });
+    });
+  }
+
   _parseResults(results) {
     const check = (r, idx) => {
       if (!r || r.Result !== 0) {

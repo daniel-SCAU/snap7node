@@ -35,6 +35,8 @@ const fields = {
   cameraRtspUrl: document.getElementById('cameraRtspUrl'),
 };
 
+const systemEnableToggle = document.getElementById('systemEnable');
+
 /* ── Load settings ───────────────────────────────────────────────────────── */
 
 async function loadSettings() {
@@ -54,6 +56,21 @@ function applyToForm(data) {
     if (el && data[key] !== undefined) {
       el.value = data[key];
     }
+  }
+}
+
+/* ── Load system enable state from PLC ───────────────────────────────────── */
+
+async function loadSystemEnable() {
+  if (!systemEnableToggle) return;
+  try {
+    const res = await fetch('/api/plc/system-enable');
+    const json = await res.json();
+    if (json.ok && json.value !== null) {
+      systemEnableToggle.checked = json.value;
+    }
+  } catch (_) {
+    // PLC may not be connected; leave default (checked = enabled)
   }
 }
 
@@ -88,12 +105,36 @@ async function saveSettings() {
   } catch (e) {
     showToast('Save error: ' + e.message, 'error');
   }
+
+  // Also write system enable to PLC
+  if (systemEnableToggle) {
+    await writeSystemEnable(systemEnableToggle.checked);
+  }
+}
+
+/* ── Write system enable to PLC ──────────────────────────────────────────── */
+
+async function writeSystemEnable(value) {
+  try {
+    const res = await fetch('/api/plc/system-enable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      showToast('System Enable write failed: ' + json.error, 'error');
+    }
+  } catch (e) {
+    showToast('System Enable write error: ' + e.message, 'error');
+  }
 }
 
 /* ── Wire up events ──────────────────────────────────────────────────────── */
 
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
+  loadSystemEnable();
 
   const saveBtn = document.getElementById('save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveSettings);
@@ -102,7 +143,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       applyToForm(DEFAULTS);
+      if (systemEnableToggle) systemEnableToggle.checked = true;
       showToast('Form reset to defaults (not saved yet)', 'info');
+    });
+  }
+
+  // Toggle writes immediately to PLC on change
+  if (systemEnableToggle) {
+    systemEnableToggle.addEventListener('change', () => {
+      writeSystemEnable(systemEnableToggle.checked);
+      showToast(systemEnableToggle.checked ? 'System Enable: ON' : 'System Enable: OFF', 'info', 2000);
     });
   }
 

@@ -39,7 +39,7 @@ const fields = {
 
 
 const systemEnableToggle = document.getElementById('systemEnable');
-=======
+
 /* ── Camera IP ↔ RTSP URL sync ───────────────────────────────────────────── */
 
 /** Replace the host (IP) portion inside an RTSP URL, leaving credentials / path intact. */

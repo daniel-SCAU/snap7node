@@ -158,6 +158,24 @@ class PlcClient {
   }
 
   /**
+   * Write the Trigger Offset value (MW12, Int).
+   * @param {number} value - The trigger offset in milliseconds (1-2000)
+   * @returns {Promise<void>}
+   */
+  writeTriggerOffset(value) {
+    return new Promise((resolve, reject) => {
+      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._connected) return reject(new Error('PLC not connected'));
+      const buf = Buffer.alloc(2);
+      buf.writeInt16BE(value, 0);
+      this._client.WriteArea(AREA_MK, 0, 12, 2, WL_BYTE, buf, (err) => {
+        if (err) return reject(new Error(`WriteArea MW12 failed: ${this._client.ErrorText(err)}`));
+        resolve();
+      });
+    });
+  }
+
+  /**
    * Write the MES Batch value (MD100, DInt).
    */
   writeMesBatch(value) {

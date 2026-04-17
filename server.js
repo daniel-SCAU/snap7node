@@ -62,6 +62,32 @@ app.post('/api/plc/system-enable', async (req, res) => {
   }
 });
 
+app.get('/api/plc/trigger-offset', async (req, res) => {
+  if (!plcClient.isConnected) {
+    return res.status(503).json({ ok: false, error: 'PLC not connected', value: null });
+  }
+  try {
+    const data = await plcClient.readAll();
+    res.json({ ok: true, value: data.triggerOffset });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message, value: null });
+  }
+});
+
+app.post('/api/plc/trigger-offset', async (req, res) => {
+  const { value } = req.body;
+  const num = parseInt(value, 10);
+  if (!Number.isFinite(num) || !Number.isInteger(num) || num < 1 || num > 2000) {
+    return res.status(400).json({ ok: false, error: 'value must be an integer between 1 and 2000' });
+  }
+  try {
+    await plcClient.writeTriggerOffset(num);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.post('/api/plc/mes-batch', async (req, res) => {
   const { value } = req.body;
   const num = parseInt(value, 10);

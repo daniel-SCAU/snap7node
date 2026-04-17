@@ -39,6 +39,8 @@ const fields = {
 
 
 const systemEnableToggle = document.getElementById('systemEnable');
+const triggerOffsetSlider = document.getElementById('triggerOffsetSlider');
+const triggerOffsetValue  = document.getElementById('triggerOffsetValue');
 
 /* ── Load settings ───────────────────────────────────────────────────────── */
 
@@ -74,6 +76,41 @@ async function loadSystemEnable() {
     }
   } catch (_) {
     // PLC may not be connected; leave default (checked = enabled)
+  }
+}
+
+/* ── Load trigger offset from PLC ────────────────────────────────────────── */
+
+async function loadTriggerOffset() {
+  if (!triggerOffsetSlider) return;
+  try {
+    const res = await fetch('/api/plc/trigger-offset');
+    const json = await res.json();
+    if (json.ok && json.value !== null) {
+      const clamped = Math.min(Math.max(json.value, 1), 2000);
+      triggerOffsetSlider.value = clamped;
+      if (triggerOffsetValue) triggerOffsetValue.textContent = clamped + ' ms';
+    }
+  } catch (_) {
+    // PLC may not be connected; leave default
+  }
+}
+
+/* ── Write trigger offset to PLC ─────────────────────────────────────────── */
+
+async function writeTriggerOffset(value) {
+  try {
+    const res = await fetch('/api/plc/trigger-offset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      showToast('Trigger Offset write failed: ' + json.error, 'error');
+    }
+  } catch (e) {
+    showToast('Trigger Offset write error: ' + e.message, 'error');
   }
 }
 
@@ -113,6 +150,11 @@ async function saveSettings() {
   if (systemEnableToggle) {
     await writeSystemEnable(systemEnableToggle.checked);
   }
+
+  // Also write trigger offset to PLC
+  if (triggerOffsetSlider) {
+    await writeTriggerOffset(parseInt(triggerOffsetSlider.value, 10));
+  }
 }
 
 /* ── Write system enable to PLC ──────────────────────────────────────────── */
@@ -138,6 +180,7 @@ async function writeSystemEnable(value) {
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadSystemEnable();
+  loadTriggerOffset();
 
   const saveBtn = document.getElementById('save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveSettings);
@@ -147,6 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBtn.addEventListener('click', () => {
       applyToForm(DEFAULTS);
       if (systemEnableToggle) systemEnableToggle.checked = true;
+      if (triggerOffsetSlider) {
+        triggerOffsetSlider.value = 500;
+        if (triggerOffsetValue) triggerOffsetValue.textContent = '500 ms';
+      }
       showToast('Form reset to defaults (not saved yet)', 'info');
     });
   }
@@ -156,6 +203,13 @@ document.addEventListener('DOMContentLoaded', () => {
     systemEnableToggle.addEventListener('change', () => {
       writeSystemEnable(systemEnableToggle.checked);
       showToast(systemEnableToggle.checked ? 'System Enable: ON' : 'System Enable: OFF', 'info', 2000);
+    });
+  }
+
+  // Slider updates live display
+  if (triggerOffsetSlider) {
+    triggerOffsetSlider.addEventListener('input', () => {
+      if (triggerOffsetValue) triggerOffsetValue.textContent = triggerOffsetSlider.value + ' ms';
     });
   }
 });

@@ -64,7 +64,6 @@ const els = {
   cameraOverlay:    document.getElementById('camera-overlay'),
   cameraOverlayText:document.getElementById('camera-overlay-text'),
   liveBadge:        document.getElementById('live-badge'),
-  cameraCanvas:     document.getElementById('camera-canvas'),
 };
 
 /* ── PLC status ──────────────────────────────────────────────────────────── */
@@ -227,67 +226,54 @@ function pushHistory(good, bad) {
   historyChart.update('none');
 }
 
-/* ── Camera stream (jsmpeg over WebSocket) ───────────────────────────────── */
-
-let jsmpegPlayer = null;
-let cameraConnected = false;
+/* ── Camera stream (iframe) ──────────────────────────────────────────────── */
 
 function initCamera(settings) {
+  const cameraUrl = settings.cameraUrl || '';
+
   if (els.cameraUrlDisplay) {
-    els.cameraUrlDisplay.textContent = settings.cameraRtspUrl || '—';
+    els.cameraUrlDisplay.textContent = cameraUrl || '—';
   }
 
-  // Extract host for display
   try {
-    const url = new URL(settings.cameraRtspUrl || 'rtsp://192.168.1.73');
+    const url = new URL(cameraUrl);
     if (els.cameraIpLabel) els.cameraIpLabel.textContent = url.hostname;
   } catch (_) {}
 
-  if (!els.cameraCanvas) return;
-  if (!window.JSMpeg) {
-    if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'jsmpeg not loaded';
+  const iframeEl = document.getElementById('camera-iframe');
+  if (!iframeEl) return;
+
+  if (!cameraUrl) {
+    if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'No camera URL configured';
     return;
   }
 
-  // Destroy previous player
-  if (jsmpegPlayer) {
-    try { jsmpegPlayer.destroy(); } catch (_) {}
-    jsmpegPlayer = null;
-  }
-
-  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProto}//${location.host}/camera-stream`;
-
-  if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Connecting to camera stream…';
+  if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Loading camera…';
   if (els.cameraOverlay) els.cameraOverlay.classList.remove('hidden');
   if (els.liveBadge) els.liveBadge.classList.add('hidden');
 
-  jsmpegPlayer = new window.JSMpeg.Player(wsUrl, {
-    canvas: els.cameraCanvas,
-    autoplay: true,
-    audio: false,
-    onSourceEstablished: () => {
-      cameraConnected = true;
-      if (els.cameraStatus) {
-        els.cameraStatus.className = 'status-dot connected';
-        els.cameraStatus.querySelector('span:last-child').textContent = 'Live';
-      }
-      if (els.cameraOverlay) els.cameraOverlay.classList.add('hidden');
-      if (els.liveBadge) els.liveBadge.classList.remove('hidden');
-    },
-    onSourceCompleted: () => {
-      cameraConnected = false;
-      if (els.cameraStatus) {
-        els.cameraStatus.className = 'status-dot disconnected';
-        els.cameraStatus.querySelector('span:last-child').textContent = 'Offline';
-      }
-      if (els.cameraOverlay) {
-        els.cameraOverlay.classList.remove('hidden');
-        if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Stream ended – reconnecting…';
-      }
-      if (els.liveBadge) els.liveBadge.classList.add('hidden');
-    },
-  });
+  iframeEl.onload = () => {
+    if (els.cameraStatus) {
+      els.cameraStatus.className = 'status-dot connected';
+      els.cameraStatus.querySelector('span:last-child').textContent = 'Live';
+    }
+    if (els.cameraOverlay) els.cameraOverlay.classList.add('hidden');
+    if (els.liveBadge) els.liveBadge.classList.remove('hidden');
+  };
+
+  iframeEl.onerror = () => {
+    if (els.cameraStatus) {
+      els.cameraStatus.className = 'status-dot disconnected';
+      els.cameraStatus.querySelector('span:last-child').textContent = 'Offline';
+    }
+    if (els.cameraOverlay) {
+      els.cameraOverlay.classList.remove('hidden');
+      if (els.cameraOverlayText) els.cameraOverlayText.textContent = 'Camera unavailable';
+    }
+    if (els.liveBadge) els.liveBadge.classList.add('hidden');
+  };
+
+  iframeEl.src = cameraUrl;
 }
 
 /* ── Socket.io ───────────────────────────────────────────────────────────── */
@@ -401,7 +387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settings = await res.json();
     initCamera(settings);
   } catch (e) {
-    initCamera({ cameraRtspUrl: 'rtsp://192.168.1.73/LiveStream' });
+    initCamera({ cameraUrl: 'http://192.168.1.73/' });
   }
 
   // New Batch button

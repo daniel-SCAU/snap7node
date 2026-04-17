@@ -4,8 +4,6 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server: SocketIOServer } = require('socket.io');
-const { WebSocketServer } = require('ws');
-const { spawn } = require('child_process');
 const cors = require('cors');
 
 const settingsModule = require('./src/settings');
@@ -132,107 +130,6 @@ function startPolling(settings) {
     }
   }, interval);
 }
-
-// ─── RTSP → WebSocket proxy (MPEG-1 via ffmpeg → jsmpeg) ─────────────────────
-
-const cameraWss = new WebSocketServer({ noServer: true });
-const cameraClients = new Set();
-let ffmpegProcess = null;
-let ffmpegRtspUrl = null;
-
-function startFfmpeg(rtspUrl) {
-  if (ffmpegProcess) {
-    const proc = ffmpegProcess;
-    ffmpegProcess = null;
-    proc.kill('SIGTERM');
-    // Escalate to SIGKILL after 3 s if still running
-    setTimeout(() => { try { proc.kill('SIGKILL'); } catch (_) {} }, 3000);
-  }
-  ffmpegRtspUrl = rtspUrl;
-
-  console.log(`[RTSP] Starting ffmpeg stream from ${rtspUrl}`);
-  const args = [
-    '-loglevel', 'error',
-    '-rtsp_transport', 'tcp',
-    '-i', rtspUrl,
-    '-f', 'mpegts',
-    '-codec:v', 'mpeg1video',
-    '-b:v', '800k',
-    '-r', '15',
-    '-s', '800x600',
-    '-bf', '0',
-    'pipe:1',
-  ];
-
-  const proc = spawn('ffmpeg', args);
-  ffmpegProcess = proc;
-
-  proc.on('error', (err) => {
-    ffmpegProcess = null;
-    const msg = err.code === 'ENOENT'
-      ? 'ffmpeg not found – install ffmpeg to enable camera streaming'
-      : `ffmpeg error: ${err.message}`;
-    console.warn(`[RTSP] ${msg}`);
-    // Notify all connected camera clients
-    for (const ws of cameraClients) {
-      if (ws.readyState === ws.OPEN) {
-        try { ws.send(JSON.stringify({ type: 'error', message: msg })); } catch (_) {}
-      }
-    }
-  });
-
-  proc.stdout.on('data', (chunk) => {
-    for (const ws of cameraClients) {
-      if (ws.readyState === ws.OPEN) {
-        try { ws.send(chunk); } catch (_) {}
-      }
-    }
-  });
-
-  proc.stderr.on('data', (d) => console.error('[ffmpeg]', d.toString().trim()));
-
-  proc.on('close', (code) => {
-    ffmpegProcess = null;
-    if (cameraClients.size > 0 && code !== null) {
-      console.warn(`[RTSP] ffmpeg exited (${code}), restarting in 3s…`);
-      setTimeout(() => {
-        if (cameraClients.size > 0) startFfmpeg(settingsModule.load().cameraRtspUrl);
-      }, 3000);
-    }
-  });
-}
-
-cameraWss.on('connection', (ws) => {
-  cameraClients.add(ws);
-  console.log(`[RTSP] Client connected (total: ${cameraClients.size})`);
-
-  if (cameraClients.size === 1 || !ffmpegProcess) {
-    const { cameraRtspUrl } = settingsModule.load();
-    startFfmpeg(cameraRtspUrl);
-  }
-
-  ws.on('close', () => {
-    cameraClients.delete(ws);
-    console.log(`[RTSP] Client disconnected (remaining: ${cameraClients.size})`);
-    if (cameraClients.size === 0 && ffmpegProcess) {
-      const proc = ffmpegProcess;
-      ffmpegProcess = null;
-      proc.kill('SIGTERM');
-      setTimeout(() => { try { proc.kill('SIGKILL'); } catch (_) {} }, 3000);
-    }
-  });
-});
-
-// Upgrade HTTP → WS for /camera-stream path only
-httpServer.on('upgrade', (req, socket, head) => {
-  if (req.url === '/camera-stream') {
-    cameraWss.handleUpgrade(req, socket, head, (ws) => {
-      cameraWss.emit('connection', ws, req);
-    });
-  } else {
-    socket.destroy();
-  }
-});
 
 // ─── Socket.io connection ─────────────────────────────────────────────────────
 

@@ -84,23 +84,13 @@
     <div class="form-group">
       <label class="form-label" for="cameraIp">Camera IP Address</label>
       <input class="form-input" id="cameraIp" type="text" placeholder="192.168.1.73" />
-      <p class="form-hint">IPv4 address of the Zebra FS42 camera — updates the RTSP URL below automatically</p>
+      <p class="form-hint">IPv4 address of the Zebra FS42 camera</p>
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="cameraRtspUrl">RTSP Stream URL</label>
-      <input class="form-input" id="cameraRtspUrl" type="text" placeholder="rtsp://192.168.1.73/LiveStream" />
-      <p class="form-hint">Full RTSP URL including credentials if required</p>
-    </div>
-
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-top:4px">
-      <p style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Common Zebra FS42 URLs</p>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <code class="rtsp-example" style="font-size:0.75rem;color:var(--accent-cyan);cursor:pointer;padding:4px 8px;border-radius:4px;background:rgba(6,182,212,0.08);display:block">rtsp://192.168.1.73/LiveStream</code>
-        <code class="rtsp-example" style="font-size:0.75rem;color:var(--accent-cyan);cursor:pointer;padding:4px 8px;border-radius:4px;background:rgba(6,182,212,0.08);display:block">rtsp://192.168.1.73/stream1</code>
-        <code class="rtsp-example" style="font-size:0.75rem;color:var(--accent-cyan);cursor:pointer;padding:4px 8px;border-radius:4px;background:rgba(6,182,212,0.08);display:block">rtsp://admin:admin@192.168.1.73/h264Preview_01_main</code>
-      </div>
-      <p style="font-size:0.7rem;color:var(--text-muted);margin-top:8px">Click an example to use it. Requires ffmpeg to be installed.</p>
+      <label class="form-label" for="cameraUrl">Camera URL</label>
+      <input class="form-input" id="cameraUrl" type="text" placeholder="http://192.168.1.73/" />
+      <p class="form-hint">HTTP URL of the camera web interface shown in the dashboard</p>
     </div>
   </div>
 

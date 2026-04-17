@@ -6,8 +6,8 @@ A modern real-time vision dashboard built with **Node.js**, **Snap7**, and **Soc
 
 - 📊 **Live PLC metrics** – goodReads, badReads, totalBags, currentBatch, mesBatch, and actualBatchCodeOCR (refreshed every second via Socket.io)
 - 🔴 **Read result indicators** – animated glow effect for lastReadGood / lastReadBad signals with toast notifications on state change
-- 📹 **RTSP camera feed** – live stream from Zebra FS42 via WebSocket + jsmpeg (requires ffmpeg)
-- ⚙️ **Settings screen** – configure PLC IP, rack/slot, poll interval, camera IP, and camera RTSP URL
+- 📹 **Camera feed** – live view from Zebra FS42 embedded via an `<iframe>` pointing to the camera's HTTP interface
+- ⚙️ **Settings screen** – configure PLC IP, rack/slot, poll interval, camera IP, and camera URL
 - 🔘 **System Enable toggle** – read and write the vision system enable bit (M14.0) directly from the Settings page
 - 📦 **New Batch keypad** – virtual numeric keypad modal for writing a new MES Batch number to MD100
 - 📈 **Read quality bar** – good read % with colour coding (blue/cyan above 80 %, red/yellow below)
@@ -20,12 +20,6 @@ A modern real-time vision dashboard built with **Node.js**, **Snap7**, and **Soc
 |------|---------|
 | Node.js | ≥ 18 |
 | npm | ≥ 9 |
-| ffmpeg | any recent version |
-
-Install ffmpeg on Ubuntu/Debian:
-```bash
-sudo apt-get install ffmpeg
-```
 
 ## PLC Tags
 
@@ -63,7 +57,7 @@ npm run dev
 open http://localhost:3000
 ```
 
-The first time you run, go to **Settings** (⚙ icon top-right) and enter your PLC IP address and camera RTSP URL.
+The first time you run, go to **Settings** (⚙ icon top-right) and enter your PLC IP address and camera URL.
 
 ## Default Settings
 
@@ -73,7 +67,7 @@ The first time you run, go to **Settings** (⚙ icon top-right) and enter your P
 | Rack | 0 |
 | Slot | 1 |
 | Camera IP | 192.168.1.73 |
-| Camera RTSP URL | rtsp://192.168.1.73/LiveStream |
+| Camera URL | http://192.168.1.73/ |
 | Poll interval | 1000 ms |
 
 Settings are persisted to `settings.json` in the project root and merged with the defaults on startup.
@@ -92,19 +86,16 @@ Settings are persisted to `settings.json` in the project root and merged with th
 
 ```
 server.js               – Express + Socket.io HTTP server, PLC polling loop,
-                          REST API endpoints, ffmpeg RTSP proxy
+                          REST API endpoints
 src/plc.js              – node-snap7 wrapper (ReadMultiVars, WriteArea)
 src/settings.js         – JSON settings persistence (settings.json)
 public/index.html       – Dashboard UI
 public/settings.html    – Settings UI
 public/js/dashboard.js  – Real-time dashboard logic (Socket.io, Chart.js, keypad)
 public/js/settings.js   – Settings page logic (load, save, system-enable toggle)
-public/js/jsmpeg.min.js – MPEG-1 WebSocket player (jsmpeg)
 public/css/style.css    – Modern dark-theme CSS
 ```
 
-## Camera stream notes
+## Camera notes
 
-The server spawns an `ffmpeg` child process that converts the RTSP feed to MPEG-1 and pipes it over a dedicated WebSocket endpoint (`/camera-stream`) to the browser where jsmpeg renders it on a `<canvas>` element. The process starts on the first camera client connection and stops when the last client disconnects.
-
-If ffmpeg is not installed the camera panel will show an offline state; all PLC data will still work normally.
+The dashboard embeds the camera's web interface in an `<iframe>`. Set the **Camera URL** in Settings to the HTTP address of the Zebra FS42 (e.g. `http://192.168.1.73/`). No additional software is required.

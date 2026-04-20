@@ -8,6 +8,7 @@ const cors = require('cors');
 
 const settingsModule = require('./src/settings');
 const plcClient = require('./src/plc');
+const tagsModule = require('./src/tags');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -96,6 +97,121 @@ app.post('/api/plc/mes-batch', async (req, res) => {
   }
   try {
     await plcClient.writeMesBatch(num);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── Tags API ─────────────────────────────────────────────────────────────────
+
+const VALID_AREAS     = ['MK', 'DB'];
+const VALID_DATATYPES = ['Bool', 'Byte', 'Word', 'Int', 'DWord', 'DInt', 'Real'];
+
+function validateTag(body) {
+  const { name, area, dbNumber, byteOffset, bitOffset, dataType } = body;
+  if (!name || typeof name !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*$/.test(name)) {
+    return 'name must be a non-empty string starting with a letter or underscore (alphanumeric/_ with optional dot-separated segments)';
+  }
+  if (!VALID_AREAS.includes(area)) return `area must be one of: ${VALID_AREAS.join(', ')}`;
+  if (area === 'DB' && (!Number.isInteger(Number(dbNumber)) || Number(dbNumber) < 1)) {
+    return 'dbNumber must be a positive integer for DB area';
+  }
+  if (!Number.isInteger(Number(byteOffset)) || Number(byteOffset) < 0) {
+    return 'byteOffset must be a non-negative integer';
+  }
+  if (!VALID_DATATYPES.includes(dataType)) return `dataType must be one of: ${VALID_DATATYPES.join(', ')}`;
+  if (dataType === 'Bool') {
+    const bit = Number(bitOffset);
+    if (!Number.isInteger(bit) || bit < 0 || bit > 7) return 'bitOffset must be 0-7 for Bool type';
+  }
+  return null;
+}
+
+// List all tags
+app.get('/api/tags', (req, res) => {
+  res.json({ ok: true, tags: tagsModule.getAll() });
+});
+
+// Create a tag
+app.post('/api/tags', (req, res) => {
+  const err = validateTag(req.body);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { name, area, dbNumber, byteOffset, bitOffset, dataType } = req.body;
+    const tag = {
+      name,
+      area,
+      dbNumber:   area === 'DB' ? parseInt(dbNumber, 10) : 0,
+      byteOffset: parseInt(byteOffset, 10),
+      bitOffset:  dataType === 'Bool' ? parseInt(bitOffset, 10) : 0,
+      dataType,
+    };
+    const created = tagsModule.create(tag);
+    res.status(201).json({ ok: true, tag: created });
+  } catch (e) {
+    res.status(409).json({ ok: false, error: e.message });
+  }
+});
+
+// Update a tag
+app.put('/api/tags/:name', (req, res) => {
+  const err = validateTag({ ...req.body, name: req.body.name || req.params.name });
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { name, area, dbNumber, byteOffset, bitOffset, dataType } = req.body;
+    const patch = {
+      name: name || req.params.name,
+      area,
+      dbNumber:   area === 'DB' ? parseInt(dbNumber, 10) : 0,
+      byteOffset: parseInt(byteOffset, 10),
+      bitOffset:  dataType === 'Bool' ? parseInt(bitOffset, 10) : 0,
+      dataType,
+    };
+    const updated = tagsModule.update(req.params.name, patch);
+    res.json({ ok: true, tag: updated });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+// Delete a tag
+app.delete('/api/tags/:name', (req, res) => {
+  try {
+    tagsModule.remove(req.params.name);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+// Read a tag value from the PLC
+app.get('/api/tags/:name/value', async (req, res) => {
+  if (!plcClient.isConnected) {
+    return res.status(503).json({ ok: false, error: 'PLC not connected', value: null });
+  }
+  const tag = tagsModule.getByName(req.params.name);
+  if (!tag) return res.status(404).json({ ok: false, error: `Tag "${req.params.name}" not found` });
+  try {
+    const value = await plcClient.readTag(tag);
+    res.json({ ok: true, value });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message, value: null });
+  }
+});
+
+// Write a value to a tag on the PLC
+app.post('/api/tags/:name/value', async (req, res) => {
+  if (!plcClient.isConnected) {
+    return res.status(503).json({ ok: false, error: 'PLC not connected' });
+  }
+  const tag = tagsModule.getByName(req.params.name);
+  if (!tag) return res.status(404).json({ ok: false, error: `Tag "${req.params.name}" not found` });
+  if (req.body.value === undefined || req.body.value === null) {
+    return res.status(400).json({ ok: false, error: 'value is required' });
+  }
+  try {
+    await plcClient.writeTag(tag, req.body.value);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

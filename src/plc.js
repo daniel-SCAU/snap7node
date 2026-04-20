@@ -31,6 +31,17 @@ const AREA_DB = 0x84;
 const WL_BYTE = 0x02;
 const WL_BIT  = 0x01;
 
+// Byte sizes and word-length for each data type
+const TYPE_META = {
+  Bool:  { wl: WL_BIT,  bytes: 1 },
+  Byte:  { wl: WL_BYTE, bytes: 1 },
+  Word:  { wl: WL_BYTE, bytes: 2 },
+  Int:   { wl: WL_BYTE, bytes: 2 },
+  DWord: { wl: WL_BYTE, bytes: 4 },
+  DInt:  { wl: WL_BYTE, bytes: 4 },
+  Real:  { wl: WL_BYTE, bytes: 4 },
+};
+
 class PlcClient {
   constructor() {
     this._client = snap7 ? new snap7.S7Client() : null;
@@ -189,6 +200,126 @@ class PlcClient {
         resolve();
       });
     });
+  }
+
+  /**
+   * Read a single user-defined tag from the PLC.
+   * @param {object} tag - tag definition (area, dbNumber, byteOffset, bitOffset, dataType)
+   * @returns {Promise<number|boolean>}
+   */
+  readTag(tag) {
+    return new Promise((resolve, reject) => {
+      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._connected) return reject(new Error('PLC not connected'));
+
+      const meta = TYPE_META[tag.dataType];
+      if (!meta) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
+
+      const area     = tag.area === 'DB' ? AREA_DB : AREA_MK;
+      const dbNumber = tag.area === 'DB' ? (tag.dbNumber || 0) : 0;
+      const start    = meta.wl === WL_BIT
+        ? tag.byteOffset * 8 + (tag.bitOffset || 0)
+        : tag.byteOffset;
+      const amount   = meta.wl === WL_BIT ? 1 : meta.bytes;
+
+      this._client.ReadArea(area, dbNumber, start, amount, meta.wl, (err, buf) => {
+        if (err) return reject(new Error(`ReadArea failed: ${this._client.ErrorText(err)}`));
+        try {
+          resolve(this._decodeBuffer(buf, tag.dataType));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  }
+
+  /**
+   * Write a value to a single user-defined tag on the PLC.
+   * @param {object} tag   - tag definition
+   * @param {*}      value - value to write
+   * @returns {Promise<void>}
+   */
+  writeTag(tag, value) {
+    return new Promise((resolve, reject) => {
+      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._connected) return reject(new Error('PLC not connected'));
+
+      const meta = TYPE_META[tag.dataType];
+      if (!meta) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
+
+      let buf;
+      try {
+        buf = this._encodeBuffer(value, tag.dataType);
+      } catch (e) {
+        return reject(e);
+      }
+
+      const area     = tag.area === 'DB' ? AREA_DB : AREA_MK;
+      const dbNumber = tag.area === 'DB' ? (tag.dbNumber || 0) : 0;
+      const start    = meta.wl === WL_BIT
+        ? tag.byteOffset * 8 + (tag.bitOffset || 0)
+        : tag.byteOffset;
+      const amount   = meta.wl === WL_BIT ? 1 : meta.bytes;
+
+      this._client.WriteArea(area, dbNumber, start, amount, meta.wl, buf, (err) => {
+        if (err) return reject(new Error(`WriteArea failed: ${this._client.ErrorText(err)}`));
+        resolve();
+      });
+    });
+  }
+
+  _decodeBuffer(buf, dataType) {
+    switch (dataType) {
+      case 'Bool':  return buf[0] !== 0;
+      case 'Byte':  return buf.readUInt8(0);
+      case 'Word':  return buf.readUInt16BE(0);
+      case 'Int':   return buf.readInt16BE(0);
+      case 'DWord': return buf.readUInt32BE(0);
+      case 'DInt':  return buf.readInt32BE(0);
+      case 'Real':  return buf.readFloatBE(0);
+      default: throw new Error(`Unknown dataType: ${dataType}`);
+    }
+  }
+
+  _encodeBuffer(value, dataType) {
+    switch (dataType) {
+      case 'Bool': {
+        const buf = Buffer.alloc(1);
+        buf[0] = value ? 1 : 0;
+        return buf;
+      }
+      case 'Byte': {
+        const buf = Buffer.alloc(1);
+        buf.writeUInt8(Math.trunc(Number(value)), 0);
+        return buf;
+      }
+      case 'Word': {
+        const buf = Buffer.alloc(2);
+        buf.writeUInt16BE(Math.trunc(Number(value)) & 0xffff, 0);
+        return buf;
+      }
+      case 'Int': {
+        const buf = Buffer.alloc(2);
+        buf.writeInt16BE(Math.trunc(Number(value)), 0);
+        return buf;
+      }
+      case 'DWord': {
+        const buf = Buffer.alloc(4);
+        buf.writeUInt32BE(Math.trunc(Number(value)) >>> 0, 0);
+        return buf;
+      }
+      case 'DInt': {
+        const buf = Buffer.alloc(4);
+        buf.writeInt32BE(Math.trunc(Number(value)), 0);
+        return buf;
+      }
+      case 'Real': {
+        const buf = Buffer.alloc(4);
+        buf.writeFloatBE(Number(value), 0);
+        return buf;
+      }
+      default: throw new Error(`Unknown dataType: ${dataType}`);
+    }
   }
 
   _parseResults(results) {

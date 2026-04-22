@@ -1,6 +1,6 @@
 # Vision Dashboard
 
-A modern real-time vision dashboard built with **Node.js**, **Snap7**, and **Socket.io** for monitoring a Siemens S7-1200 PLC and a Zebra FS42 camera.
+A modern real-time vision dashboard built with **Node.js**, **nodes7**, and **Socket.io** for monitoring a Siemens S7-1200 PLC and a Zebra FS42 camera.
 
 ## Features
 
@@ -87,7 +87,7 @@ Settings are persisted to `settings.json` in the project root and merged with th
 ```
 server.js               – Express + Socket.io HTTP server, PLC polling loop,
                           REST API endpoints
-src/plc.js              – node-snap7 wrapper (ReadMultiVars, WriteArea)
+src/plc.js              – nodes7 wrapper (initiateConnection, addItems/readAllItems, writeItems)
 src/settings.js         – JSON settings persistence (settings.json)
 public/index.html       – Dashboard UI
 public/settings.html    – Settings UI

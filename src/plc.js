@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * PLC data reader using node-snap7.
+ * PLC data reader using nodes7.
  *
  * Tag map:
  *  Merker area:
@@ -19,41 +19,46 @@
  *    lastReadBad      Bool   offset 418, bit 1
  */
 
-let snap7;
+let NodeS7;
 try {
-  snap7 = require('node-snap7');
+  NodeS7 = require('nodes7');
 } catch (e) {
-  snap7 = null;
+  NodeS7 = null;
 }
 
-const AREA_MK = 0x83;
-const AREA_DB = 0x84;
-const WL_BYTE = 0x02;
-const WL_BIT  = 0x01;
-
-// Byte sizes and word-length for each data type
-const TYPE_META = {
-  Bool:  { wl: WL_BIT,  bytes: 1 },
-  Byte:  { wl: WL_BYTE, bytes: 1 },
-  Word:  { wl: WL_BYTE, bytes: 2 },
-  Int:   { wl: WL_BYTE, bytes: 2 },
-  DWord: { wl: WL_BYTE, bytes: 4 },
-  DInt:  { wl: WL_BYTE, bytes: 4 },
-  Real:  { wl: WL_BYTE, bytes: 4 },
+// nodes7 addresses for the fixed dashboard tags
+const DASHBOARD_TAGS = {
+  triggerOffset:      'MW12',
+  enableVision:       'M14.0',
+  actualBatchCodeOCR: 'MD16',
+  currentBatch:       'MD20',
+  mesBatch:           'MD100',
+  goodReads:          'DB1,DINT406',
+  badReads:           'DB1,DINT410',
+  totalBags:          'DB1,DINT414',
+  lastReadGood:       'DB1,X418.0',
+  lastReadBad:        'DB1,X418.1',
 };
+
+// Signed integer conversion boundaries
+const INT16_MAX    = 0x7FFF;
+const UINT16_RANGE = 0x10000;
+const INT32_MAX    = 0x7FFFFFFF;
+const UINT32_RANGE = 0x100000000;
 
 class PlcClient {
   constructor() {
-    this._client = snap7 ? new snap7.S7Client() : null;
+    this._conn = NodeS7 ? new NodeS7({ silent: true }) : null;
     this._connected = false;
     this._connecting = false;
     this._settings = null;
+    this._dashboardItemsAdded = false;
   }
 
   connect(settings) {
     return new Promise((resolve, reject) => {
-      if (!this._client) {
-        return reject(new Error('node-snap7 not available'));
+      if (!this._conn) {
+        return reject(new Error('nodes7 not available'));
       }
       if (this._connecting) {
         return reject(new Error('Already connecting'));
@@ -77,17 +82,24 @@ class PlcClient {
       this._connecting = true;
       this._settings = settings;
 
-      this._client.ConnectTo(
-        settings.plcIp,
-        parseInt(settings.plcRack, 10),
-        parseInt(settings.plcSlot, 10),
+      this._conn.initiateConnection(
+        {
+          port: 102,
+          host: settings.plcIp,
+          rack: parseInt(settings.plcRack, 10),
+          slot: parseInt(settings.plcSlot, 10),
+        },
         (err) => {
           this._connecting = false;
-          if (err) {
+          if (typeof err !== 'undefined') {
             this._connected = false;
-            return reject(new Error(`PLC connect failed: ${this._client.ErrorText(err)}`));
+            return reject(new Error(`PLC connect failed: ${err}`));
           }
           this._connected = true;
+          if (!this._dashboardItemsAdded) {
+            this._conn.addItems(Object.values(DASHBOARD_TAGS));
+            this._dashboardItemsAdded = true;
+          }
           resolve();
         }
       );
@@ -95,9 +107,9 @@ class PlcClient {
   }
 
   disconnect() {
-    if (this._client && this._connected) {
+    if (this._conn && this._connected) {
       try {
-        this._client.Disconnect();
+        this._conn.dropConnection();
       } catch (_) {}
       this._connected = false;
     }
@@ -113,40 +125,33 @@ class PlcClient {
    */
   readAll() {
     return new Promise((resolve, reject) => {
-      if (!this._client) {
-        return reject(new Error('node-snap7 not available'));
+      if (!this._conn) {
+        return reject(new Error('nodes7 not available'));
       }
       if (!this._connected) {
         return reject(new Error('PLC not connected'));
       }
 
-      // Build multi-read request
-      const items = [
-        // Merker area reads
-        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 12, Amount: 2 }, // triggerOffset  MW12 (2 bytes)
-        { Area: AREA_MK, WordLen: WL_BIT,  DBNumber: 0, Start: 14 * 8 + 0, Amount: 1 }, // enableVision M14.0
-        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 16, Amount: 4 }, // actualBatchCodeOCR MD16
-        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 20, Amount: 4 }, // currentBatch MD20
-        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 100, Amount: 4 }, // mesBatch MD100
-        // DB1 reads
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 406, Amount: 4 }, // goodReads
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 410, Amount: 4 }, // badReads
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 414, Amount: 4 }, // totalBags
-        { Area: AREA_DB, WordLen: WL_BIT,  DBNumber: 1, Start: 418 * 8 + 0, Amount: 1 }, // lastReadGood
-        { Area: AREA_DB, WordLen: WL_BIT,  DBNumber: 1, Start: 418 * 8 + 1, Amount: 1 }, // lastReadBad
-      ];
-
-      this._client.ReadMultiVars(items, (err, results) => {
-        if (err) {
+      this._conn.readAllItems((anythingBad, values) => {
+        if (anythingBad) {
           this._connected = false;
-          return reject(new Error(`ReadMultiVars failed: ${this._client.ErrorText(err)}`));
+          return reject(new Error('readAllItems failed'));
         }
-
         try {
-          const data = this._parseResults(results);
-          resolve(data);
-        } catch (parseErr) {
-          reject(parseErr);
+          resolve({
+            triggerOffset:      this._toInt16(values[DASHBOARD_TAGS.triggerOffset]),
+            enableVision:       !!values[DASHBOARD_TAGS.enableVision],
+            actualBatchCodeOCR: this._toInt32(values[DASHBOARD_TAGS.actualBatchCodeOCR]),
+            currentBatch:       this._toInt32(values[DASHBOARD_TAGS.currentBatch]),
+            mesBatch:           this._toInt32(values[DASHBOARD_TAGS.mesBatch]),
+            goodReads:          values[DASHBOARD_TAGS.goodReads],
+            badReads:           values[DASHBOARD_TAGS.badReads],
+            totalBags:          values[DASHBOARD_TAGS.totalBags],
+            lastReadGood:       !!values[DASHBOARD_TAGS.lastReadGood],
+            lastReadBad:        !!values[DASHBOARD_TAGS.lastReadBad],
+          });
+        } catch (e) {
+          reject(e);
         }
       });
     });
@@ -157,12 +162,10 @@ class PlcClient {
    */
   writeSystemEnable(value) {
     return new Promise((resolve, reject) => {
-      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._conn) return reject(new Error('nodes7 not available'));
       if (!this._connected) return reject(new Error('PLC not connected'));
-      const buf = Buffer.alloc(1);
-      buf[0] = value ? 1 : 0;
-      this._client.WriteArea(AREA_MK, 0, 14 * 8 + 0, 1, WL_BIT, buf, (err) => {
-        if (err) return reject(new Error(`WriteArea M14.0 failed: ${this._client.ErrorText(err)}`));
+      this._conn.writeItems('M14.0', value ? 1 : 0, (anythingBad) => {
+        if (anythingBad) return reject(new Error('Write M14.0 failed'));
         resolve();
       });
     });
@@ -175,12 +178,10 @@ class PlcClient {
    */
   writeTriggerOffset(value) {
     return new Promise((resolve, reject) => {
-      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._conn) return reject(new Error('nodes7 not available'));
       if (!this._connected) return reject(new Error('PLC not connected'));
-      const buf = Buffer.alloc(2);
-      buf.writeInt16BE(value, 0);
-      this._client.WriteArea(AREA_MK, 0, 12, 2, WL_BYTE, buf, (err) => {
-        if (err) return reject(new Error(`WriteArea MW12 failed: ${this._client.ErrorText(err)}`));
+      this._conn.writeItems('MW12', this._fromInt16(value), (anythingBad) => {
+        if (anythingBad) return reject(new Error('Write MW12 failed'));
         resolve();
       });
     });
@@ -191,12 +192,10 @@ class PlcClient {
    */
   writeMesBatch(value) {
     return new Promise((resolve, reject) => {
-      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._conn) return reject(new Error('nodes7 not available'));
       if (!this._connected) return reject(new Error('PLC not connected'));
-      const buf = Buffer.alloc(4);
-      buf.writeInt32BE(value, 0);
-      this._client.WriteArea(AREA_MK, 0, 100, 4, WL_BYTE, buf, (err) => {
-        if (err) return reject(new Error(`WriteArea MD100 failed: ${this._client.ErrorText(err)}`));
+      this._conn.writeItems('MD100', this._fromInt32(value), (anythingBad) => {
+        if (anythingBad) return reject(new Error('Write MD100 failed'));
         resolve();
       });
     });
@@ -209,26 +208,24 @@ class PlcClient {
    */
   readTag(tag) {
     return new Promise((resolve, reject) => {
-      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._conn) return reject(new Error('nodes7 not available'));
       if (!this._connected) return reject(new Error('PLC not connected'));
 
-      const meta = TYPE_META[tag.dataType];
-      if (!meta) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
+      const address = this._buildAddress(tag);
+      if (!address) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
 
-      const area     = tag.area === 'DB' ? AREA_DB : AREA_MK;
-      const dbNumber = tag.area === 'DB' ? (tag.dbNumber || 0) : 0;
-      const start    = meta.wl === WL_BIT
-        ? tag.byteOffset * 8 + (tag.bitOffset || 0)
-        : tag.byteOffset;
-      const amount   = meta.wl === WL_BIT ? 1 : meta.bytes;
-
-      this._client.ReadArea(area, dbNumber, start, amount, meta.wl, (err, buf) => {
-        if (err) return reject(new Error(`ReadArea failed: ${this._client.ErrorText(err)}`));
-        try {
-          resolve(this._decodeBuffer(buf, tag.dataType));
-        } catch (e) {
-          reject(e);
+      this._conn.addItems(address);
+      this._conn.readAllItems((anythingBad, values) => {
+        if (anythingBad) {
+          this._conn.removeItems(address);
+          return reject(new Error(`Read tag "${tag.name}" failed`));
         }
+        const raw = values[address];
+        this._conn.removeItems(address);
+        if (raw === undefined || raw === null) {
+          return reject(new Error(`No value returned for address ${address}`));
+        }
+        resolve(this._decodeValue(raw, tag.dataType, tag.area));
       });
     });
   }
@@ -241,118 +238,106 @@ class PlcClient {
    */
   writeTag(tag, value) {
     return new Promise((resolve, reject) => {
-      if (!this._client) return reject(new Error('node-snap7 not available'));
+      if (!this._conn) return reject(new Error('nodes7 not available'));
       if (!this._connected) return reject(new Error('PLC not connected'));
 
-      const meta = TYPE_META[tag.dataType];
-      if (!meta) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
+      const address = this._buildAddress(tag);
+      if (!address) return reject(new Error(`Unknown dataType: ${tag.dataType}`));
 
-      let buf;
-      try {
-        buf = this._encodeBuffer(value, tag.dataType);
-      } catch (e) {
-        return reject(e);
-      }
-
-      const area     = tag.area === 'DB' ? AREA_DB : AREA_MK;
-      const dbNumber = tag.area === 'DB' ? (tag.dbNumber || 0) : 0;
-      const start    = meta.wl === WL_BIT
-        ? tag.byteOffset * 8 + (tag.bitOffset || 0)
-        : tag.byteOffset;
-      const amount   = meta.wl === WL_BIT ? 1 : meta.bytes;
-
-      this._client.WriteArea(area, dbNumber, start, amount, meta.wl, buf, (err) => {
-        if (err) return reject(new Error(`WriteArea failed: ${this._client.ErrorText(err)}`));
+      const encoded = this._encodeValue(value, tag.dataType, tag.area);
+      this._conn.writeItems(address, encoded, (anythingBad) => {
+        if (anythingBad) return reject(new Error(`Write tag "${tag.name}" failed`));
         resolve();
       });
     });
   }
 
-  _decodeBuffer(buf, dataType) {
-    switch (dataType) {
-      case 'Bool':  return buf[0] !== 0;
-      case 'Byte':  return buf.readUInt8(0);
-      case 'Word':  return buf.readUInt16BE(0);
-      case 'Int':   return buf.readInt16BE(0);
-      case 'DWord': return buf.readUInt32BE(0);
-      case 'DInt':  return buf.readInt32BE(0);
-      case 'Real':  return buf.readFloatBE(0);
-      default: throw new Error(`Unknown dataType: ${dataType}`);
+  /**
+   * Build a nodes7 address string from a tag definition.
+   * M area: M{b}.{bit} | MB{b} | MW{b} | MD{b} | MR{b}
+   * DB area: DB{n},X{b}.{bit} | DB{n},BYTE{b} | DB{n},WORD{b} | DB{n},INT{b} | DB{n},DWORD{b} | DB{n},DINT{b} | DB{n},REAL{b}
+   */
+  _buildAddress(tag) {
+    const { area, dbNumber, byteOffset, bitOffset, dataType } = tag;
+    if (area === 'MK') {
+      switch (dataType) {
+        case 'Bool':  return `M${byteOffset}.${bitOffset || 0}`;
+        case 'Byte':  return `MB${byteOffset}`;
+        case 'Word':
+        case 'Int':   return `MW${byteOffset}`;
+        case 'DWord':
+        case 'DInt':  return `MD${byteOffset}`;
+        case 'Real':  return `MR${byteOffset}`;
+        default: return null;
+      }
+    } else if (area === 'DB') {
+      const db = dbNumber || 0;
+      switch (dataType) {
+        case 'Bool':  return `DB${db},X${byteOffset}.${bitOffset || 0}`;
+        case 'Byte':  return `DB${db},BYTE${byteOffset}`;
+        case 'Word':  return `DB${db},WORD${byteOffset}`;
+        case 'Int':   return `DB${db},INT${byteOffset}`;
+        case 'DWord': return `DB${db},DWORD${byteOffset}`;
+        case 'DInt':  return `DB${db},DINT${byteOffset}`;
+        case 'Real':  return `DB${db},REAL${byteOffset}`;
+        default: return null;
+      }
     }
+    return null;
   }
 
-  _encodeBuffer(value, dataType) {
-    switch (dataType) {
-      case 'Bool': {
-        const buf = Buffer.alloc(1);
-        buf[0] = value ? 1 : 0;
-        return buf;
+  /**
+   * Decode a raw nodes7 value to the correct JS type.
+   * M area Int/DInt come back as unsigned from nodes7; DB area types are decoded natively.
+   */
+  _decodeValue(raw, dataType, area) {
+    if (area === 'MK') {
+      switch (dataType) {
+        case 'Bool':  return !!raw;
+        case 'Int':   return this._toInt16(raw);
+        case 'DInt':  return this._toInt32(raw);
+        default: return raw;
       }
-      case 'Byte': {
-        const buf = Buffer.alloc(1);
-        buf.writeUInt8(Math.trunc(Number(value)), 0);
-        return buf;
-      }
-      case 'Word': {
-        const buf = Buffer.alloc(2);
-        buf.writeUInt16BE(Math.trunc(Number(value)) & 0xffff, 0);
-        return buf;
-      }
-      case 'Int': {
-        const buf = Buffer.alloc(2);
-        buf.writeInt16BE(Math.trunc(Number(value)), 0);
-        return buf;
-      }
-      case 'DWord': {
-        const buf = Buffer.alloc(4);
-        buf.writeUInt32BE(Math.trunc(Number(value)) >>> 0, 0);
-        return buf;
-      }
-      case 'DInt': {
-        const buf = Buffer.alloc(4);
-        buf.writeInt32BE(Math.trunc(Number(value)), 0);
-        return buf;
-      }
-      case 'Real': {
-        const buf = Buffer.alloc(4);
-        buf.writeFloatBE(Number(value), 0);
-        return buf;
-      }
-      default: throw new Error(`Unknown dataType: ${dataType}`);
     }
+    // DB area – nodes7 handles sign/type natively
+    if (dataType === 'Bool') return !!raw;
+    return raw;
   }
 
-  _parseResults(results) {
-    const check = (r, idx) => {
-      if (!r || r.Result !== 0) {
-        throw new Error(`ReadMultiVars item ${idx} failed with code ${r ? r.Result : 'null'}`);
+  /**
+   * Encode a JS value for writing via nodes7.
+   * M area Int/DInt must be sent as their unsigned bit-pattern.
+   */
+  _encodeValue(value, dataType, area) {
+    if (area === 'MK') {
+      switch (dataType) {
+        case 'Bool':  return value ? 1 : 0;
+        case 'Int':   return this._fromInt16(Number(value));
+        case 'DInt':  return this._fromInt32(Number(value));
+        default: return Number(value);
       }
-      return r.Data;
-    };
+    }
+    // DB area
+    if (dataType === 'Bool') return value ? 1 : 0;
+    return Number(value);
+  }
 
-    const triggerOffsetBuf = check(results[0], 0);
-    const enableVisionBuf  = check(results[1], 1);
-    const actualBatchBuf   = check(results[2], 2);
-    const currentBatchBuf  = check(results[3], 3);
-    const mesBatchBuf      = check(results[4], 4);
-    const goodReadsBuf     = check(results[5], 5);
-    const badReadsBuf      = check(results[6], 6);
-    const totalBagsBuf     = check(results[7], 7);
-    const lastReadGoodBuf  = check(results[8], 8);
-    const lastReadBadBuf   = check(results[9], 9);
+  _toInt16(val) {
+    const n = Number(val);
+    return n > INT16_MAX ? n - UINT16_RANGE : n;
+  }
 
-    return {
-      triggerOffset:      triggerOffsetBuf.readInt16BE(0),
-      enableVision:       enableVisionBuf[0] !== 0,
-      actualBatchCodeOCR: actualBatchBuf.readInt32BE(0),
-      currentBatch:       currentBatchBuf.readInt32BE(0),
-      mesBatch:           mesBatchBuf.readInt32BE(0),
-      goodReads:          goodReadsBuf.readInt32BE(0),
-      badReads:           badReadsBuf.readInt32BE(0),
-      totalBags:          totalBagsBuf.readInt32BE(0),
-      lastReadGood:       lastReadGoodBuf[0] !== 0,
-      lastReadBad:        lastReadBadBuf[0] !== 0,
-    };
+  _toInt32(val) {
+    const n = Number(val);
+    return n > INT32_MAX ? n - UINT32_RANGE : n;
+  }
+
+  _fromInt16(val) {
+    return val < 0 ? val + UINT16_RANGE : val;
+  }
+
+  _fromInt32(val) {
+    return val < 0 ? val + UINT32_RANGE : val;
   }
 }
 

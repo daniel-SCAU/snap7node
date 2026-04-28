@@ -134,6 +134,11 @@ class PlcClient {
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 414, Amount: 4 }, // totalBags
         { Area: AREA_DB, WordLen: WL_BIT,  DBNumber: 1, Start: 418 * 8 + 0, Amount: 1 }, // lastReadGood
         { Area: AREA_DB, WordLen: WL_BIT,  DBNumber: 1, Start: 418 * 8 + 1, Amount: 1 }, // lastReadBad
+        // DB1 batch string reads (S7 String: 2-byte header + char data)
+        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 0,   Amount: 9  }, // batchStr String[7]
+        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 428, Amount: 10 }, // LastBatchStartStr String[8]
+        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 438, Amount: 10 }, // LastBatchBestBeforeStr String[8]
+        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 448, Amount: 7  }, // LastBagNo String[5]
       ];
 
       this._client.ReadMultiVars(items, (err, results) => {
@@ -268,6 +273,17 @@ class PlcClient {
     });
   }
 
+  /**
+   * Decode an S7 String buffer.
+   * S7 String format: byte[0] = maxLength, byte[1] = actualLength, byte[2..] = ASCII chars.
+   */
+  _decodeS7String(buf) {
+    if (!buf || buf.length < 2) return '';
+    const actualLen = Math.min(buf[1], buf.length - 2);
+    if (actualLen <= 0) return '';
+    return buf.toString('ascii', 2, 2 + actualLen).replace(/[^\x20-\x7E]/g, '');
+  }
+
   _decodeBuffer(buf, dataType) {
     switch (dataType) {
       case 'Bool':  return buf[0] !== 0;
@@ -340,6 +356,10 @@ class PlcClient {
     const totalBagsBuf     = check(results[7], 7);
     const lastReadGoodBuf  = check(results[8], 8);
     const lastReadBadBuf   = check(results[9], 9);
+    const batchStrBuf             = check(results[10], 10);
+    const lastBatchStartStrBuf    = check(results[11], 11);
+    const lastBatchBBStrBuf       = check(results[12], 12);
+    const lastBagNoBuf            = check(results[13], 13);
 
     return {
       triggerOffset:      triggerOffsetBuf.readInt16BE(0),
@@ -352,6 +372,10 @@ class PlcClient {
       totalBags:          totalBagsBuf.readInt32BE(0),
       lastReadGood:       lastReadGoodBuf[0] !== 0,
       lastReadBad:        lastReadBadBuf[0] !== 0,
+      batchStr:           this._decodeS7String(batchStrBuf),
+      lastBatchStartStr:  this._decodeS7String(lastBatchStartStrBuf),
+      lastBatchBBStr:     this._decodeS7String(lastBatchBBStrBuf),
+      lastBagNo:          this._decodeS7String(lastBagNoBuf),
     };
   }
 }

@@ -170,20 +170,47 @@ class PlcClient {
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 496, Amount: 4 }, // OEE
       ];
 
-      this._client.ReadMultiVars(items, (err, results) => {
-        if (err) {
+      // ReadMultiVars supports at most 20 items per call; split into chunks.
+      this._readMultiVarsChunked(items)
+        .then((results) => {
+          try {
+            resolve(this._parseResults(results));
+          } catch (parseErr) {
+            reject(parseErr);
+          }
+        })
+        .catch((err) => {
           this._connected = false;
-          return reject(new Error(`ReadMultiVars failed: ${this._client.ErrorText(err)}`));
-        }
-
-        try {
-          const data = this._parseResults(results);
-          resolve(data);
-        } catch (parseErr) {
-          reject(parseErr);
-        }
-      });
+          reject(err);
+        });
     });
+  }
+
+  /**
+   * Split items into chunks of at most 20 and call ReadMultiVars for each,
+   * then concatenate all result arrays in order.
+   */
+  _readMultiVarsChunked(items) {
+    const MAX_VARS = 20;
+    const chunks = [];
+    for (let i = 0; i < items.length; i += MAX_VARS) {
+      chunks.push(items.slice(i, i + MAX_VARS));
+    }
+
+    return chunks.reduce(
+      (promise, chunk) =>
+        promise.then((acc) =>
+          new Promise((resolve, reject) => {
+            this._client.ReadMultiVars(chunk, (err, results) => {
+              if (err) {
+                return reject(new Error(`ReadMultiVars failed: ${this._client.ErrorText(err)}`));
+              }
+              resolve(acc.concat(results));
+            });
+          })
+        ),
+      Promise.resolve([])
+    );
   }
 
   /**

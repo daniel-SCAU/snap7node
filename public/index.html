@@ -117,6 +117,12 @@
         <div class="metric-value" id="val-actualBatchCodeOCR" style="font-size:1.4rem">—</div>
         <div class="metric-subtitle">Last read code</div>
       </div>
+      <div class="metric-card card-green" style="--card-accent:#14b8a6">
+        <span class="metric-icon">📊</span>
+        <div class="metric-label">OEE</div>
+        <div class="metric-value" id="val-oee" style="font-size:1.6rem">—</div>
+        <div class="metric-subtitle">Overall Equipment Effectiveness</div>
+      </div>
     </div>
   </div>
 
@@ -135,9 +141,31 @@
     </div>
   </div>
 
+  <!-- Batch Data section -->
+  <div>
+    <p class="section-title">Batch Data</p>
+    <div class="info-panel">
+      <div class="info-row">
+        <span class="info-row-label">Batch ID</span>
+        <span class="info-row-value" id="val-batchStr">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row-label">Prod Date</span>
+        <span class="info-row-value" id="val-lastBatchStartStr">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row-label">Before Data</span>
+        <span class="info-row-value" id="val-lastBatchBBStr">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row-label">Bag No</span>
+        <span class="info-row-value" id="val-lastBagNo">—</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Camera + Batch detail -->
   <div class="two-col">
-
     <!-- Camera feed -->
     <div class="camera-panel">
       <div class="camera-header">

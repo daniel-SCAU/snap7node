@@ -20,6 +20,12 @@ function fmt(value) {
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
 
+// Display integers without locale comma separators (e.g. batch codes: 1234567 not 1,234,567)
+function fmtId(value) {
+  if (value === null || value === undefined) return '—';
+  return String(value);
+}
+
 function setValueAnimated(el, newText) {
   if (!el) return;
   if (el.textContent === newText) return;
@@ -52,6 +58,12 @@ const els = {
   ocrDetail:        document.getElementById('val-ocrDetail'),
   currentBatchDetail: document.getElementById('val-currentBatchDetail'),
   mesBatchDetail:   document.getElementById('val-mesBatchDetail'),
+
+  oee:              document.getElementById('val-oee'),
+  batchStr:         document.getElementById('val-batchStr'),
+  lastBatchStartStr:document.getElementById('val-lastBatchStartStr'),
+  lastBatchBBStr:   document.getElementById('val-lastBatchBBStr'),
+  lastBagNo:        document.getElementById('val-lastBagNo'),
 
   qualityPct:       document.getElementById('quality-pct'),
   qualityBar:       document.getElementById('quality-bar'),
@@ -90,16 +102,16 @@ function renderData(data) {
   setValueAnimated(els.goodReads,   fmt(data.goodReads));
   setValueAnimated(els.badReads,    fmt(data.badReads));
   setValueAnimated(els.totalBags,   fmt(data.totalBags));
-  setValueAnimated(els.currentBatch,fmt(data.currentBatch));
-  setValueAnimated(els.mesBatch,    fmt(data.mesBatch));
-  setValueAnimated(els.ocrCode,     fmt(data.actualBatchCodeOCR));
+  setValueAnimated(els.currentBatch,fmtId(data.currentBatch));
+  setValueAnimated(els.mesBatch,    fmtId(data.mesBatch));
+  setValueAnimated(els.ocrCode,     fmtId(data.actualBatchCodeOCR));
 
   // Detail panel
   setValueAnimated(els.triggerOffset,     fmt(data.triggerOffset));
   setValueAnimated(els.enableVision,      data.enableVision ? 'ON' : 'OFF');
-  setValueAnimated(els.ocrDetail,         fmt(data.actualBatchCodeOCR));
-  setValueAnimated(els.currentBatchDetail,fmt(data.currentBatch));
-  setValueAnimated(els.mesBatchDetail,    fmt(data.mesBatch));
+  setValueAnimated(els.ocrDetail,         fmtId(data.actualBatchCodeOCR));
+  setValueAnimated(els.currentBatchDetail,fmtId(data.currentBatch));
+  setValueAnimated(els.mesBatchDetail,    fmtId(data.mesBatch));
 
   // Vision enable badge
   if (els.visionBadge) {
@@ -121,6 +133,24 @@ function renderData(data) {
   }
   if (els.progressGoodLabel) els.progressGoodLabel.textContent = `Good: ${fmt(data.goodReads)}`;
   if (els.progressTotalLabel) els.progressTotalLabel.textContent = `Total: ${fmt(total)}`;
+
+  // OEE (quality component: good reads / total bags × 100%)
+  // Uses total bags as denominator to represent overall throughput quality.
+  if (els.oee) {
+    const oeeTotal = data.totalBags || 0;
+    if (oeeTotal > 0) {
+      const oeePct = Math.round(((data.goodReads || 0) / oeeTotal) * 100);
+      setValueAnimated(els.oee, oeePct + '%');
+    } else {
+      setValueAnimated(els.oee, 'N/A');
+    }
+  }
+
+  // Batch data
+  setValueAnimated(els.batchStr,          data.batchStr          || '—');
+  setValueAnimated(els.lastBatchStartStr, data.lastBatchStartStr  || '—');
+  setValueAnimated(els.lastBatchBBStr,    data.lastBatchBBStr     || '—');
+  setValueAnimated(els.lastBagNo,         data.lastBagNo          || '—');
 
   // Read result indicators
   const goodActive = data.lastReadGood;

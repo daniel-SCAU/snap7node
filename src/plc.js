@@ -170,7 +170,10 @@ class PlcClient {
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 496, Amount: 4 }, // OEE
       ];
 
-      // ReadMultiVars supports at most 20 items per call; split into chunks.
+      // Split into chunks that fit within the PLC's PDU size. S7-300/400 PLCs
+      // negotiate a 240-byte PDU by default; each read request occupies a 12-byte
+      // header plus 12 bytes per item, leaving room for at most 19 items.  Use 18
+      // to stay safely below the limit and avoid the "total data exceeds PDU" error.
       this._readMultiVarsChunked(items)
         .then((results) => {
           try {
@@ -187,11 +190,15 @@ class PlcClient {
   }
 
   /**
-   * Split items into chunks of at most 20 and call ReadMultiVars for each,
+   * Split items into chunks of at most MAX_VARS and call ReadMultiVars for each,
    * then concatenate all result arrays in order.
+   *
+   * MAX_VARS is capped at 18 to stay within the 240-byte PDU negotiated by
+   * S7-300/400 PLCs (request = 12-byte header + N × 12 bytes per item;
+   * 12 + 18 × 12 = 228 bytes, safely below the 240-byte limit).
    */
   _readMultiVarsChunked(items) {
-    const MAX_VARS = 20;
+    const MAX_VARS = 18;
     const chunks = [];
     for (let i = 0; i < items.length; i += MAX_VARS) {
       chunks.push(items.slice(i, i + MAX_VARS));

@@ -667,12 +667,17 @@ function closeModal() {
   editingWidgetId = null;
 }
 
+function formatTagMeta(t) {
+  const location = t.area === 'DB' ? `DB${t.dbNumber}` : t.area;
+  return `${t.name}  (${t.dataType}, ${location} byte ${t.byteOffset})`;
+}
+
 function populateTagSelect(sel, selectedName) {
   sel.innerHTML = '<option value="">— select a tag —</option>';
   tags.forEach((t) => {
     const opt = document.createElement('option');
     opt.value = t.name;
-    opt.textContent = `${t.name}  (${t.dataType}, ${t.area}${t.area === 'DB' ? t.dbNumber : ''} byte ${t.byteOffset})`;
+    opt.textContent = formatTagMeta(t);
     if (t.name === selectedName) opt.selected = true;
     sel.appendChild(opt);
   });
@@ -807,9 +812,13 @@ socket.on('plcData', ({ status }) => {
 });
 
 socket.on('tagValues', (values) => {
-  // Push trend history for all received values before merging
+  // Only push trend history for tags used by trend-type widgets
+  const trendTagNames = new Set(
+    widgets.filter((w) => w.type === 'trend').map((w) => w.tagName)
+  );
+
   Object.entries(values).forEach(([name, value]) => {
-    if (value !== null && value !== undefined) {
+    if (trendTagNames.has(name) && value !== null && value !== undefined) {
       pushTrend(name, value);
     }
   });

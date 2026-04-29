@@ -172,6 +172,11 @@
             <span class="type-btn-name">Slider</span>
             <span class="type-btn-desc">Range slider to write numeric values</span>
           </button>
+          <button class="type-btn" data-type="history">
+            <span class="type-btn-icon">📉</span>
+            <span class="type-btn-name">History</span>
+            <span class="type-btn-desc">Long-term trend stored in browser, selectable time window</span>
+          </button>
         </div>
       </div>
 
@@ -344,6 +349,13 @@
           <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-slider-unit">Unit</label>
           <input class="form-input" id="modal-slider-unit" type="text" placeholder="e.g. °C" maxlength="20" />
         </div>
+      </div>
+
+      <!-- History widget options -->
+      <div id="modal-history-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label" for="modal-history-maxpts">Max stored points</label>
+        <input class="form-input" id="modal-history-maxpts" type="number" min="50" max="2000" value="720" />
+        <p class="form-hint">Maximum data points kept in browser storage (50–2000). At 1 update/s, 720 points ≈ 12 min; at 1/min ≈ 12 h. Use the in-widget controls to select the visible time window.</p>
       </div>
 
       <!-- Widget Accent Color -->

@@ -24,6 +24,8 @@ var tags = [];
 var tagValues = {};
 var trendHistory = {};
 var trendCharts = {};
+var historyCharts = {};
+var widgetViewModes = {};
 var editMode = false;
 var editingWidgetId = null;
 
@@ -133,14 +135,57 @@ function getWidgetPos(w) {
 }
 
 function autoAssignPositions(widgetList, cols) {
-  var col = 1, row = 1;
-  widgetList.forEach(function(w) {
-    if (w.x && w.y) return;
+  var occupied = {};
+
+  function cellKey(x, y) { return x + ',' + y; }
+
+  function isRectFree(x, y, w, h) {
+    for (var r = 0; r < h; r++) {
+      for (var c = 0; c < w; c++) {
+        if (occupied[cellKey(x + c, y + r)]) return false;
+      }
+    }
+    return true;
+  }
+
+  function markRect(x, y, w, h) {
+    for (var r = 0; r < h; r++) {
+      for (var c = 0; c < w; c++) { occupied[cellKey(x + c, y + r)] = true; }
+    }
+  }
+
+  function findFreePos(ww, wh) {
+    for (var row = 1; row <= 1000; row++) {
+      for (var col = 1; col <= cols - ww + 1; col++) {
+        if (isRectFree(col, row, ww, wh)) return { x: col, y: row };
+      }
+    }
+    return { x: 1, y: 1 };
+  }
+
+  var positioned   = widgetList.filter(function(w) { return w.x && w.y; });
+  var unpositioned = widgetList.filter(function(w) { return !w.x || !w.y; });
+
+  positioned.sort(function(a, b) { return (a.y - b.y) || (a.x - b.x); });
+
+  positioned.forEach(function(w) {
     var ww = w.w || w.colSpan || 2;
     var wh = w.h || w.rowSpan || 1;
-    if (col + ww - 1 > cols) { col = 1; row += 1; }
-    w.x = col; w.y = row; w.w = ww; w.h = wh;
-    col += ww;
+    if (isRectFree(w.x, w.y, ww, wh)) {
+      markRect(w.x, w.y, ww, wh);
+    } else {
+      var pos = findFreePos(ww, wh);
+      w.x = pos.x; w.y = pos.y; w.w = ww; w.h = wh;
+      markRect(pos.x, pos.y, ww, wh);
+    }
+  });
+
+  unpositioned.forEach(function(w) {
+    var ww = w.w || w.colSpan || 2;
+    var wh = w.h || w.rowSpan || 1;
+    var pos = findFreePos(ww, wh);
+    w.x = pos.x; w.y = pos.y; w.w = ww; w.h = wh;
+    markRect(pos.x, pos.y, ww, wh);
   });
 }
 
@@ -196,20 +241,87 @@ function updatePlcBadge(status) {
 
 /* -- Trend history --------------------------------------------------------- */
 
-var MAX_TREND = 200;
+var MAX_TREND = 500;
 
 function pushTrend(tagName, value) {
-  if (!trendHistory[tagName]) trendHistory[tagName] = { labels: [], values: [] };
+  if (!trendHistory[tagName]) trendHistory[tagName] = { labels: [], values: [], timestamps: [] };
   var hist = trendHistory[tagName];
-  var label = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  hist.labels.push(label); hist.values.push(value);
-  if (hist.labels.length > MAX_TREND) { hist.labels.shift(); hist.values.shift(); }
+  var now = new Date();
+  var label = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  hist.labels.push(label); hist.values.push(value); hist.timestamps.push(now.getTime());
+  if (hist.labels.length > MAX_TREND) { hist.labels.shift(); hist.values.shift(); hist.timestamps.shift(); }
 }
 
-function getTrendSlice(tagName, maxPoints) {
-  var hist = trendHistory[tagName] || { labels: [], values: [] };
-  var n = maxPoints || 30;
+function getTrendSlice(tagName, mode, count, timeMs) {
+  var hist = trendHistory[tagName] || { labels: [], values: [], timestamps: [] };
+  if (mode === 'time' && timeMs) {
+    var cutoff = Date.now() - timeMs;
+    var ts = hist.timestamps || [];
+    var idx = ts.length;
+    for (var i = 0; i < ts.length; i++) {
+      if (ts[i] >= cutoff) { idx = i; break; }
+    }
+    return { labels: hist.labels.slice(idx), values: hist.values.slice(idx) };
+  }
+  var n = count || 30;
   return { labels: hist.labels.slice(-n), values: hist.values.slice(-n) };
+}
+
+/* -- localStorage-backed history (long-term trends) ----------------------- */
+
+var HISTORY_MAX_POINTS = 1440; // default fallback
+
+function getLocalHistoryData(tagName) {
+  try {
+    var raw = localStorage.getItem('wh_' + tagName);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return { timestamps: [], values: [] };
+}
+
+function saveLocalHistoryData(tagName, data) {
+  try { localStorage.setItem('wh_' + tagName, JSON.stringify(data)); } catch (_) {}
+}
+
+function pushHistoryData(tagName, value, maxPoints) {
+  if (value === null || value === undefined) return;
+  var limit = maxPoints || HISTORY_MAX_POINTS;
+  var data = getLocalHistoryData(tagName);
+  data.timestamps.push(Date.now());
+  data.values.push(value);
+  if (data.timestamps.length > limit) {
+    data.timestamps = data.timestamps.slice(-limit);
+    data.values = data.values.slice(-limit);
+  }
+  saveLocalHistoryData(tagName, data);
+}
+
+function getHistorySlice(tagName, mode, count, timeMs) {
+  var data = getLocalHistoryData(tagName);
+  if (mode === 'time' && timeMs) {
+    var cutoff = Date.now() - timeMs;
+    var idx = data.timestamps.length;
+    for (var i = 0; i < data.timestamps.length; i++) {
+      if (data.timestamps[i] >= cutoff) { idx = i; break; }
+    }
+    var ts = data.timestamps.slice(idx);
+    var vs = data.values.slice(idx);
+    return {
+      labels: ts.map(function(t) { return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }),
+      values: vs,
+    };
+  }
+  var n = count || 30;
+  var ts2 = data.timestamps.slice(-n);
+  var vs2 = data.values.slice(-n);
+  return {
+    labels: ts2.map(function(t) { return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }),
+    values: vs2,
+  };
+}
+
+function getWidgetMode(wId, defaultCount) {
+  return widgetViewModes[wId] || { mode: 'updates', count: defaultCount || 30 };
 }
 
 /* -- Tag badge helper ------------------------------------------------------ */
@@ -223,6 +335,7 @@ function getTagBadgeText(w) {
     try { return new URL((w.config && w.config.url) || '').hostname || 'no URL'; } catch (_) { return 'invalid URL'; }
   }
   if (w.type === 'clock') return 'clock';
+  if (w.type === 'history') return (w.tagName || '') + ' (hist)';
   return w.tagName || '';
 }
 
@@ -245,6 +358,9 @@ function renderAll() {
   Object.keys(trendCharts).forEach(function(id) {
     if (trendCharts[id]) { trendCharts[id].destroy(); delete trendCharts[id]; }
   });
+  Object.keys(historyCharts).forEach(function(id) {
+    if (historyCharts[id]) { historyCharts[id].destroy(); delete historyCharts[id]; }
+  });
   var grid = document.getElementById('widget-grid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -261,6 +377,7 @@ function renderAll() {
   widgets.forEach(function(w, idx) { grid.appendChild(buildWidgetCard(w, idx)); });
   widgets.forEach(function(w) {
     if (w.type === 'trend') initTrendChart(w);
+    if (w.type === 'history') initHistoryChart(w);
     if (w.type === 'clock') {
       clockIntervals[w.id] = setInterval(function() { updateClock(w.id); }, 1000);
       updateClock(w.id);
@@ -339,6 +456,25 @@ function buildWidgetCard(w, idx) {
       slider.addEventListener('change', function() { handleSliderChange(w, slider); });
     }
   }
+  if (w.type === 'trend' || w.type === 'history') {
+    card.querySelectorAll('.trend-mode-btn').forEach(function(modeBtn) {
+      modeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var mode = modeBtn.dataset.mode;
+        var wm = { mode: mode };
+        if (mode === 'updates') {
+          wm.count = parseInt(modeBtn.dataset.count, 10) || 30;
+        } else {
+          wm.timeMs = parseInt(modeBtn.dataset.timems, 10) || 300000;
+        }
+        widgetViewModes[w.id] = wm;
+        card.querySelectorAll('.trend-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+        modeBtn.classList.add('active');
+        if (w.type === 'trend') updateTrendChart(w);
+        else updateHistoryChart(w);
+      });
+    });
+  }
   return card;
 }
 
@@ -348,8 +484,52 @@ function buildWidgetBody(w) {
       return '<div class="widget-value-display" id="wval-' + w.id + '">&#8212;</div>' +
              '<div class="widget-value-unit">' + escHtml((w.config && w.config.unit) || '') + '</div>';
 
-    case 'trend':
-      return '<canvas class="widget-trend-canvas" id="wchart-' + w.id + '"></canvas>';
+    case 'trend': {
+      var defaultCount = (w.config && w.config.trendLength) || 30;
+      var wm = widgetViewModes[w.id] || { mode: 'updates', count: defaultCount };
+      var tCounts = [30, 100, 200];
+      var tTimes  = [
+        { ms: 60000,    lbl: '1m'  },
+        { ms: 300000,   lbl: '5m'  },
+        { ms: 900000,   lbl: '15m' },
+        { ms: 3600000,  lbl: '1h'  },
+      ];
+      var tBtns = tCounts.map(function(c) {
+        var a = (wm.mode === 'updates' && wm.count === c) ? ' active' : '';
+        return '<button class="trend-mode-btn' + a + '" data-mode="updates" data-count="' + c + '">' + c + '</button>';
+      }).join('');
+      tBtns += '<span class="trend-mode-sep"></span>';
+      tBtns += tTimes.map(function(t) {
+        var a = (wm.mode === 'time' && wm.timeMs === t.ms) ? ' active' : '';
+        return '<button class="trend-mode-btn' + a + '" data-mode="time" data-timems="' + t.ms + '">' + t.lbl + '</button>';
+      }).join('');
+      return '<div class="widget-trend-controls">' + tBtns + '</div>' +
+             '<canvas class="widget-trend-canvas" id="wchart-' + w.id + '"></canvas>';
+    }
+
+    case 'history': {
+      var hwm = widgetViewModes[w.id] || { mode: 'time', timeMs: 60000 };
+      var hCounts = [30, 100, 500];
+      var hTimes  = [
+        { ms: 60000,    lbl: '1m'  },
+        { ms: 300000,   lbl: '5m'  },
+        { ms: 900000,   lbl: '15m' },
+        { ms: 3600000,  lbl: '1h'  },
+        { ms: 14400000, lbl: '4h'  },
+        { ms: 86400000, lbl: '24h' },
+      ];
+      var hBtns = hCounts.map(function(c) {
+        var a = (hwm.mode === 'updates' && hwm.count === c) ? ' active' : '';
+        return '<button class="trend-mode-btn' + a + '" data-mode="updates" data-count="' + c + '">' + c + '</button>';
+      }).join('');
+      hBtns += '<span class="trend-mode-sep"></span>';
+      hBtns += hTimes.map(function(t) {
+        var a = (hwm.mode === 'time' && hwm.timeMs === t.ms) ? ' active' : '';
+        return '<button class="trend-mode-btn' + a + '" data-mode="time" data-timems="' + t.ms + '">' + t.lbl + '</button>';
+      }).join('');
+      return '<div class="widget-trend-controls">' + hBtns + '</div>' +
+             '<canvas class="widget-trend-canvas" id="wchart-' + w.id + '"></canvas>';
+    }
 
     case 'indicator':
       return '<div class="widget-indicator-wrap">' +
@@ -530,6 +710,7 @@ function applyValue(w, value) {
       break;
     }
     case 'trend': break;
+    case 'history': break;
     case 'bargraph': {
       var bar = document.getElementById('wbar-' + w.id);
       var barValEl = document.getElementById('wbar-val-' + w.id);
@@ -599,8 +780,8 @@ function initTrendChart(w) {
   var canvas = document.getElementById('wchart-' + w.id);
   if (!canvas || typeof Chart === 'undefined') return;
   if (trendCharts[w.id]) trendCharts[w.id].destroy();
-  var maxPts = (w.config && w.config.trendLength) || 30;
-  var slice = getTrendSlice(w.tagName, maxPts);
+  var wMode = widgetViewModes[w.id] || { mode: 'updates', count: (w.config && w.config.trendLength) || 30 };
+  var slice = getTrendSlice(w.tagName, wMode.mode, wMode.count, wMode.timeMs);
   trendCharts[w.id] = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
@@ -622,8 +803,44 @@ function initTrendChart(w) {
 function updateTrendChart(w) {
   var chart = trendCharts[w.id];
   if (!chart) return;
-  var maxPts = (w.config && w.config.trendLength) || 30;
-  var slice = getTrendSlice(w.tagName, maxPts);
+  var wMode = widgetViewModes[w.id] || { mode: 'updates', count: (w.config && w.config.trendLength) || 30 };
+  var slice = getTrendSlice(w.tagName, wMode.mode, wMode.count, wMode.timeMs);
+  chart.data.labels = slice.labels;
+  chart.data.datasets[0].data = slice.values;
+  chart.update('none');
+}
+
+/* -- History charts -------------------------------------------------------- */
+
+function initHistoryChart(w) {
+  var canvas = document.getElementById('wchart-' + w.id);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (historyCharts[w.id]) historyCharts[w.id].destroy();
+  var wMode = widgetViewModes[w.id] || { mode: 'time', timeMs: 60000 };
+  var slice = getHistorySlice(w.tagName, wMode.mode, wMode.count, wMode.timeMs);
+  historyCharts[w.id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: slice.labels,
+      datasets: [{ label: w.label, data: slice.values, borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 6 }, grid: { color: 'rgba(30,41,59,0.8)' } },
+        y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(30,41,59,0.8)' }, beginAtZero: false },
+      },
+    },
+  });
+}
+
+function updateHistoryChart(w) {
+  var chart = historyCharts[w.id];
+  if (!chart) return;
+  var wMode = widgetViewModes[w.id] || { mode: 'time', timeMs: 60000 };
+  var slice = getHistorySlice(w.tagName, wMode.mode, wMode.count, wMode.timeMs);
   chart.data.labels = slice.labels;
   chart.data.datasets[0].data = slice.values;
   chart.update('none');
@@ -813,7 +1030,9 @@ async function deleteWidget(id) {
     var json = await res.json();
     if (json.ok) {
       if (trendCharts[id]) { trendCharts[id].destroy(); delete trendCharts[id]; }
+      if (historyCharts[id]) { historyCharts[id].destroy(); delete historyCharts[id]; }
       if (clockIntervals[id]) { clearInterval(clockIntervals[id]); delete clockIntervals[id]; }
+      delete widgetViewModes[id];
       widgets = widgets.filter(function(w) { return w.id !== id; });
       renderAll();
       if (editMode) applyEditMode(true);
@@ -1097,6 +1316,7 @@ function setModalType(type) {
     'modal-group-opts':    type === 'group',
     'modal-gauge-opts':    type === 'gauge',
     'modal-slider-opts':   type === 'slider',
+    'modal-history-opts':  type === 'history',
   };
   Object.keys(panels).forEach(function(id) {
     var el = document.getElementById(id);
@@ -1126,6 +1346,7 @@ function openAddModal() {
     'modal-bargraph-min': '0', 'modal-bargraph-max': '100', 'modal-bargraph-unit': '', 'modal-bargraph-decimals': '1',
     'modal-iframe-url': '', 'modal-gauge-min': '0', 'modal-gauge-max': '100', 'modal-gauge-unit': '', 'modal-gauge-decimals': '1',
     'modal-slider-min': '0', 'modal-slider-max': '100', 'modal-slider-step': '1', 'modal-slider-unit': '',
+    'modal-history-maxpts': '720',
   };
   Object.keys(defaults).forEach(function(id) { var el = document.getElementById(id); if (el) el.value = defaults[id]; });
   setBargraphColor('blue');
@@ -1180,6 +1401,7 @@ function openEditModal(id) {
   setVal('modal-slider-max',        cfg.max  != null ? cfg.max  : 100);
   setVal('modal-slider-step',       cfg.step != null ? cfg.step : 1);
   setVal('modal-slider-unit',       cfg.unit || '');
+  setVal('modal-history-maxpts',    cfg.maxPoints != null ? cfg.maxPoints : 720);
   setBargraphColor(cfg.color || 'blue');
   setModalAccentColor(w.accentColor || 'none');
   showModal();
@@ -1280,6 +1502,10 @@ async function saveWidget() {
     cfg.step = parseFloat(document.getElementById('modal-slider-step').value) || 1;
     cfg.unit = (document.getElementById('modal-slider-unit') || {}).value || '';
   }
+  if (modalType === 'history') {
+    var hMp = document.getElementById('modal-history-maxpts');
+    cfg.maxPoints = hMp ? Math.max(50, Math.min(2000, parseInt(hMp.value, 10) || 720)) : 720;
+  }
 
   var existingPos = null;
   if (editingWidgetId) {
@@ -1342,6 +1568,12 @@ socket.on('tagValues', function(values) {
     var value = values[name];
     if (trendTagNames.has(name) && value !== null && value !== undefined) pushTrend(name, value);
   });
+  widgets.filter(function(w) { return w.type === 'history'; }).forEach(function(w) {
+    var value = values[w.tagName];
+    if (value !== null && value !== undefined) {
+      pushHistoryData(w.tagName, value, (w.config && w.config.maxPoints) || HISTORY_MAX_POINTS);
+    }
+  });
   Object.assign(tagValues, values);
   widgets.forEach(function(w) {
     if (w.type === 'group') applyGroupValues(w);
@@ -1350,6 +1582,7 @@ socket.on('tagValues', function(values) {
       if (val !== undefined) {
         applyValue(w, val);
         if (w.type === 'trend') updateTrendChart(w);
+        if (w.type === 'history') updateHistoryChart(w);
       }
     }
   });

@@ -233,10 +233,53 @@
 
 /* ── Trend Widget ────────────────────────────────────────────────────────── */
 
+.widget-trend-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.trend-mode-btn {
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  line-height: 1.4;
+}
+
+.trend-mode-btn:hover {
+  border-color: var(--border-accent);
+  color: var(--text-secondary);
+}
+
+.trend-mode-btn.active {
+  border-color: var(--accent-blue);
+  background: rgba(59,130,246,0.18);
+  color: var(--accent-blue);
+}
+
+.trend-mode-sep {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .widget-trend-canvas {
   width: 100% !important;
   flex: 1;
-  min-height: 80px;
+  min-height: 60px;
 }
 
 /* ── Write Widget ────────────────────────────────────────────────────────── */

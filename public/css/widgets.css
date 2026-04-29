@@ -505,3 +505,117 @@
 .row-size-btn.active { border-color: var(--accent-blue); background: rgba(59,130,246,0.12); color: var(--text-primary); }
 
 /* Toast styles are inherited from style.css */
+
+/* ── Bar Graph Widget ────────────────────────────────────────────────────── */
+
+.widget-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.widget-bar-track {
+  height: 22px;
+  background: var(--bg-secondary);
+  border-radius: 11px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.widget-bar-fill {
+  height: 100%;
+  border-radius: 11px;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+
+.widget-bar-blue   { background: var(--accent-blue); }
+.widget-bar-green  { background: var(--accent-green); }
+.widget-bar-cyan   { background: var(--accent-cyan); }
+.widget-bar-yellow { background: var(--accent-yellow); }
+.widget-bar-red    { background: var(--accent-red); }
+.widget-bar-purple { background: var(--accent-purple); }
+
+.widget-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.widget-bar-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── IFrame Widget ───────────────────────────────────────────────────────── */
+
+.widget-iframe {
+  width: 100%;
+  flex: 1;
+  min-height: 100px;
+  border: none;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+/* ── Group Widget ────────────────────────────────────────────────────────── */
+
+.widget-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.widget-group-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.widget-group-row:last-child { border-bottom: none; }
+
+.widget-group-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.widget-group-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.widget-group-value.group-on  { color: var(--accent-green); }
+.widget-group-value.group-off { color: var(--text-muted); }
+
+/* ── Bargraph colour picker (modal) ──────────────────────────────────────── */
+
+.bar-color-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bar-color-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.bar-color-btn:hover  { transform: scale(1.15); }
+.bar-color-btn.active { border-color: var(--text-primary); }

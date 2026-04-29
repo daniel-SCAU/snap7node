@@ -29,6 +29,7 @@ let editingWidgetId = null; // null = adding new, string = editing existing
 let modalType = 'value';
 let modalColSpan = 1;
 let modalRowSpan = 1;
+let modalBargraphColor = 'blue';
 
 /* ── ID generator ─────────────────────────────────────────────────────────── */
 
@@ -101,6 +102,23 @@ function getTrendSlice(tagName, maxPoints) {
     labels: hist.labels.slice(-n),
     values: hist.values.slice(-n),
   };
+}
+
+/* ── Tag badge helper ─────────────────────────────────────────────────────── */
+
+function getTagBadgeText(w) {
+  if (w.type === 'group') {
+    const n = (w.config && Array.isArray(w.config.tagNames)) ? w.config.tagNames.length : 0;
+    return `${n} tag${n !== 1 ? 's' : ''}`;
+  }
+  if (w.type === 'iframe') {
+    try {
+      return new URL((w.config && w.config.url) || '').hostname || 'iframe';
+    } catch (_) {
+      return 'iframe';
+    }
+  }
+  return w.tagName || '';
 }
 
 /* ── Widget rendering ─────────────────────────────────────────────────────── */
@@ -183,7 +201,7 @@ function buildWidgetCard(w, idx) {
     <!-- Widget content -->
     <div class="widget-header">
       <span class="widget-label">${escHtml(w.label)}</span>
-      <span class="widget-tag-badge">${escHtml(w.tagName)}</span>
+      <span class="widget-tag-badge">${escHtml(getTagBadgeText(w))}</span>
     </div>
     <div class="widget-body" id="wbody-${w.id}">
       ${buildWidgetBody(w)}
@@ -262,15 +280,85 @@ function buildWidgetBody(w) {
         <div class="widget-current-val" id="wwrite-cur-${w.id}">Current: —</div>`;
     }
 
+    case 'bargraph': {
+      const cfg = w.config || {};
+      const min = cfg.min != null ? cfg.min : 0;
+      const max = cfg.max != null ? cfg.max : 100;
+      const unit = cfg.unit || '';
+      const color = cfg.color || 'blue';
+      return `
+        <div class="widget-bar-wrap">
+          <div class="widget-bar-track">
+            <div class="widget-bar-fill widget-bar-${escHtml(color)}" id="wbar-${w.id}" style="width:0%"></div>
+          </div>
+          <div class="widget-bar-labels">
+            <span>${escHtml(String(min))}${escHtml(unit)}</span>
+            <span class="widget-bar-value" id="wbar-val-${w.id}">—</span>
+            <span>${escHtml(String(max))}${escHtml(unit)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'iframe': {
+      const cfg = w.config || {};
+      const url = cfg.url || '';
+      if (!url) {
+        return `<span style="color:var(--text-muted);font-size:0.8rem">No URL configured</span>`;
+      }
+      return `<iframe class="widget-iframe" src="${escHtml(url)}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>`;
+    }
+
+    case 'group': {
+      const cfg = w.config || {};
+      const tagNames = Array.isArray(cfg.tagNames) ? cfg.tagNames : [];
+      if (tagNames.length === 0) {
+        return `<span style="color:var(--text-muted);font-size:0.8rem">No tags configured</span>`;
+      }
+      const rows = tagNames.map((tn) => `
+        <div class="widget-group-row">
+          <span class="widget-group-tag">${escHtml(tn)}</span>
+          <span class="widget-group-value" id="wgroup-val-${w.id}-${escHtml(tn)}">—</span>
+        </div>`).join('');
+      return `<div class="widget-group-list">${rows}</div>`;
+    }
+
     default:
       return `<span style="color:var(--text-muted);font-size:0.8rem">Unknown widget type</span>`;
   }
 }
 
-/* ── Apply values to widgets ─────────────────────────────────────────────── */
-
 function applyAllValues() {
-  widgets.forEach((w) => applyValue(w, tagValues[w.tagName]));
+  widgets.forEach((w) => {
+    if (w.type === 'group') {
+      applyGroupValues(w);
+    } else {
+      applyValue(w, tagValues[w.tagName]);
+    }
+  });
+}
+
+function applyGroupValues(w) {
+  const tagNames = (w.config && Array.isArray(w.config.tagNames)) ? w.config.tagNames : [];
+  tagNames.forEach((tn) => {
+    const el = document.getElementById(`wgroup-val-${w.id}-${tn}`);
+    if (!el) return;
+    const val = tagValues[tn];
+    if (val === null || val === undefined) {
+      el.textContent = '—';
+      el.className = 'widget-group-value';
+    } else {
+      const tag = tags.find((t) => t.name === tn);
+      const isBool = tag && tag.dataType === 'Bool';
+      if (isBool) {
+        const on = val === true || val === 1;
+        el.textContent = on ? 'ON' : 'OFF';
+        el.className = `widget-group-value ${on ? 'group-on' : 'group-off'}`;
+      } else {
+        el.textContent = String(val);
+        el.className = 'widget-group-value';
+      }
+    }
+  });
 }
 
 function applyValue(w, value) {
@@ -324,6 +412,28 @@ function applyValue(w, value) {
 
     case 'trend': {
       // trend chart updated separately
+      break;
+    }
+
+    case 'bargraph': {
+      const bar   = document.getElementById(`wbar-${w.id}`);
+      const valEl = document.getElementById(`wbar-val-${w.id}`);
+      if (!bar || !valEl) return;
+      const cfg  = w.config || {};
+      const min  = cfg.min != null ? Number(cfg.min) : 0;
+      const max  = cfg.max != null ? Number(cfg.max) : 100;
+      const dec  = cfg.decimals != null ? Math.max(0, parseInt(cfg.decimals, 10)) : 1;
+      const unit = cfg.unit || '';
+      if (value === null || value === undefined) {
+        bar.style.width = '0%';
+        valEl.textContent = '—';
+      } else {
+        const num = Number(value);
+        const range = max - min || 1;
+        const pct = Math.min(100, Math.max(0, ((num - min) / range) * 100));
+        bar.style.width = pct + '%';
+        valEl.textContent = num.toFixed(dec) + (unit ? '\u00a0' + unit : '');
+      }
       break;
     }
   }
@@ -572,15 +682,16 @@ function openAddModal() {
   modalType = 'value';
   modalColSpan = 1;
   modalRowSpan = 1;
+  modalBargraphColor = 'blue';
 
   const titleEl = document.getElementById('widget-modal-title');
   if (titleEl) titleEl.lastChild.textContent = ' Add Widget';
 
   // Reset form
   const tagSel = document.getElementById('modal-tag-select');
-  if (tagSel) {
-    populateTagSelect(tagSel, '');
-  }
+  if (tagSel) populateTagSelect(tagSel, '');
+  const groupSel = document.getElementById('modal-group-tags');
+  if (groupSel) populateGroupTagSelect(groupSel, []);
   const labelIn = document.getElementById('modal-label');
   if (labelIn) labelIn.value = '';
   setModalType('value');
@@ -603,6 +714,17 @@ function openAddModal() {
   if (wMaxIn) wMaxIn.value = '';
   const wStepIn = document.getElementById('modal-write-step');
   if (wStepIn) wStepIn.value = '1';
+  const bgMinIn = document.getElementById('modal-bargraph-min');
+  if (bgMinIn) bgMinIn.value = '0';
+  const bgMaxIn = document.getElementById('modal-bargraph-max');
+  if (bgMaxIn) bgMaxIn.value = '100';
+  const bgUnitIn = document.getElementById('modal-bargraph-unit');
+  if (bgUnitIn) bgUnitIn.value = '';
+  const bgDecIn = document.getElementById('modal-bargraph-decimals');
+  if (bgDecIn) bgDecIn.value = '1';
+  setBargraphColor('blue');
+  const iframeUrlIn = document.getElementById('modal-iframe-url');
+  if (iframeUrlIn) iframeUrlIn.value = '';
 
   showModal();
 }
@@ -614,12 +736,18 @@ function openEditModal(id) {
   modalType = w.type || 'value';
   modalColSpan = w.colSpan || 1;
   modalRowSpan = w.rowSpan || 1;
+  modalBargraphColor = (w.config && w.config.color) || 'blue';
 
   const titleEl = document.getElementById('widget-modal-title');
   if (titleEl) titleEl.lastChild.textContent = ' Edit Widget';
 
   const tagSel = document.getElementById('modal-tag-select');
   if (tagSel) populateTagSelect(tagSel, w.tagName);
+  const groupSel = document.getElementById('modal-group-tags');
+  if (groupSel) {
+    const selected = (w.config && Array.isArray(w.config.tagNames)) ? w.config.tagNames : [];
+    populateGroupTagSelect(groupSel, selected);
+  }
 
   const labelIn = document.getElementById('modal-label');
   if (labelIn) labelIn.value = w.label || '';
@@ -648,6 +776,21 @@ function openEditModal(id) {
   if (wMaxIn) wMaxIn.value = cfg.writeMax != null ? cfg.writeMax : '';
   const wStepIn = document.getElementById('modal-write-step');
   if (wStepIn) wStepIn.value = cfg.writeStep != null ? cfg.writeStep : 1;
+
+  // Bar graph config
+  const bgMinIn = document.getElementById('modal-bargraph-min');
+  if (bgMinIn) bgMinIn.value = cfg.min != null ? cfg.min : 0;
+  const bgMaxIn = document.getElementById('modal-bargraph-max');
+  if (bgMaxIn) bgMaxIn.value = cfg.max != null ? cfg.max : 100;
+  const bgUnitIn = document.getElementById('modal-bargraph-unit');
+  if (bgUnitIn) bgUnitIn.value = cfg.unit || '';
+  const bgDecIn = document.getElementById('modal-bargraph-decimals');
+  if (bgDecIn) bgDecIn.value = cfg.decimals != null ? cfg.decimals : 1;
+  setBargraphColor(cfg.color || 'blue');
+
+  // IFrame config
+  const iframeUrlIn = document.getElementById('modal-iframe-url');
+  if (iframeUrlIn) iframeUrlIn.value = cfg.url || '';
 
   showModal();
 }
@@ -683,18 +826,50 @@ function populateTagSelect(sel, selectedName) {
   });
 }
 
+function populateGroupTagSelect(sel, selectedNames) {
+  const set = new Set(selectedNames || []);
+  sel.innerHTML = '';
+  tags.forEach((t) => {
+    const opt = document.createElement('option');
+    opt.value = t.name;
+    opt.textContent = formatTagMeta(t);
+    if (set.has(t.name)) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function setBargraphColor(color) {
+  modalBargraphColor = color || 'blue';
+  document.querySelectorAll('#bargraph-color-grid .bar-color-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.color === modalBargraphColor);
+  });
+}
+
 function setModalType(type) {
   modalType = type;
   document.querySelectorAll('.type-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.type === type);
   });
+
+  // Hide the single-tag picker for types that don't use a single tag
+  const tagPickerGroup = document.getElementById('modal-tag-picker-group');
+  if (tagPickerGroup) {
+    tagPickerGroup.classList.toggle('hidden', type === 'iframe' || type === 'group');
+  }
+
   // Show relevant option panels
-  const valueOpts = document.getElementById('modal-value-opts');
-  const trendOpts = document.getElementById('modal-trend-opts');
-  const writeOpts = document.getElementById('modal-write-opts');
-  if (valueOpts) valueOpts.classList.toggle('hidden', type !== 'value');
-  if (trendOpts) trendOpts.classList.toggle('hidden', type !== 'trend');
-  if (writeOpts) writeOpts.classList.toggle('hidden', type !== 'write');
+  const valueOpts    = document.getElementById('modal-value-opts');
+  const trendOpts    = document.getElementById('modal-trend-opts');
+  const writeOpts    = document.getElementById('modal-write-opts');
+  const bargraphOpts = document.getElementById('modal-bargraph-opts');
+  const iframeOpts   = document.getElementById('modal-iframe-opts');
+  const groupOpts    = document.getElementById('modal-group-opts');
+  if (valueOpts)    valueOpts.classList.toggle('hidden', type !== 'value');
+  if (trendOpts)    trendOpts.classList.toggle('hidden', type !== 'trend');
+  if (writeOpts)    writeOpts.classList.toggle('hidden', type !== 'write');
+  if (bargraphOpts) bargraphOpts.classList.toggle('hidden', type !== 'bargraph');
+  if (iframeOpts)   iframeOpts.classList.toggle('hidden', type !== 'iframe');
+  if (groupOpts)    groupOpts.classList.toggle('hidden', type !== 'group');
 }
 
 /* ── Modal: save ─────────────────────────────────────────────────────────── */
@@ -702,11 +877,12 @@ function setModalType(type) {
 async function saveWidget() {
   const tagSel  = document.getElementById('modal-tag-select');
   const labelIn = document.getElementById('modal-label');
-  const tagName = tagSel ? tagSel.value : '';
+  const isTagless = modalType === 'iframe' || modalType === 'group';
+  const tagName = isTagless ? '' : (tagSel ? tagSel.value : '');
   const label   = labelIn ? labelIn.value.trim() : '';
 
-  if (!tagName) { showToast('Please select a tag', 'error', 2500); return; }
-  if (!label)   { showToast('Please enter a label', 'error', 2500); return; }
+  if (!isTagless && !tagName) { showToast('Please select a tag', 'error', 2500); return; }
+  if (!label) { showToast('Please enter a label', 'error', 2500); return; }
 
   const cfg = {};
   if (modalType === 'value') {
@@ -726,6 +902,27 @@ async function saveWidget() {
     cfg.writeMin  = mn && mn.value.trim() !== '' ? parseFloat(mn.value) : null;
     cfg.writeMax  = mx && mx.value.trim() !== '' ? parseFloat(mx.value) : null;
     cfg.writeStep = st && st.value.trim() !== '' ? parseFloat(st.value) : 1;
+  }
+  if (modalType === 'bargraph') {
+    const bgMin  = document.getElementById('modal-bargraph-min');
+    const bgMax  = document.getElementById('modal-bargraph-max');
+    const bgUnit = document.getElementById('modal-bargraph-unit');
+    const bgDec  = document.getElementById('modal-bargraph-decimals');
+    cfg.min      = bgMin && bgMin.value.trim() !== '' ? parseFloat(bgMin.value) : 0;
+    cfg.max      = bgMax && bgMax.value.trim() !== '' ? parseFloat(bgMax.value) : 100;
+    cfg.unit     = bgUnit ? bgUnit.value.trim() : '';
+    cfg.decimals = bgDec ? Math.max(0, parseInt(bgDec.value, 10)) : 1;
+    cfg.color    = modalBargraphColor || 'blue';
+  }
+  if (modalType === 'iframe') {
+    const urlIn = document.getElementById('modal-iframe-url');
+    cfg.url = urlIn ? urlIn.value.trim() : '';
+    if (!cfg.url) { showToast('Please enter a URL', 'error', 2500); return; }
+  }
+  if (modalType === 'group') {
+    const groupSel = document.getElementById('modal-group-tags');
+    cfg.tagNames = groupSel ? Array.from(groupSel.selectedOptions).map((o) => o.value) : [];
+    if (cfg.tagNames.length === 0) { showToast('Please select at least one tag', 'error', 2500); return; }
   }
 
   const payload = {
@@ -827,11 +1024,15 @@ socket.on('tagValues', (values) => {
 
   // Update widget displays
   widgets.forEach((w) => {
-    const val = tagValues[w.tagName];
-    if (val !== undefined) {
-      applyValue(w, val);
-      if (w.type === 'trend') {
-        updateTrendChart(w, val);
+    if (w.type === 'group') {
+      applyGroupValues(w);
+    } else {
+      const val = tagValues[w.tagName];
+      if (val !== undefined) {
+        applyValue(w, val);
+        if (w.type === 'trend') {
+          updateTrendChart(w, val);
+        }
       }
     }
   });
@@ -885,6 +1086,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         b.classList.toggle('active', b === btn);
       });
     });
+  });
+
+  // Bargraph colour buttons
+  document.querySelectorAll('#bargraph-color-grid .bar-color-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setBargraphColor(btn.dataset.color));
   });
 
   buildColSpanGrid();

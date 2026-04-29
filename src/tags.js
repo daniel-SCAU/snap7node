@@ -75,4 +75,8 @@ function remove(name) {
   save(tags);
 }
 
-module.exports = { getAll, getByName, create, update, remove };
+function replaceAll(newTags) {
+  save(newTags);
+}
+
+module.exports = { getAll, getByName, create, update, remove, replaceAll };

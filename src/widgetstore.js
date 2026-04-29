@@ -85,4 +85,8 @@ function reorder(ids) {
   return reordered;
 }
 
-module.exports = { getAll, create, update, remove, reorder };
+function replaceAll(newWidgets) {
+  save(newWidgets);
+}
+
+module.exports = { getAll, create, update, remove, reorder, replaceAll };

@@ -221,13 +221,18 @@ app.post('/api/tags/:name/value', async (req, res) => {
 
 // ─── Widgets API ──────────────────────────────────────────────────────────────
 
-const VALID_WIDGET_TYPES = ['value', 'trend', 'indicator', 'write'];
+const VALID_WIDGET_TYPES = ['value', 'trend', 'indicator', 'write', 'bargraph', 'iframe', 'group'];
+
+// Widget types that do not require a linked tag
+const TAGLESS_WIDGET_TYPES = ['iframe', 'group'];
 
 function validateWidget(body) {
   const { id, type, tagName, label, colSpan, rowSpan } = body;
   if (!id || typeof id !== 'string') return 'id must be a non-empty string';
   if (!VALID_WIDGET_TYPES.includes(type)) return `type must be one of: ${VALID_WIDGET_TYPES.join(', ')}`;
-  if (!tagName || typeof tagName !== 'string') return 'tagName must be a non-empty string';
+  if (!TAGLESS_WIDGET_TYPES.includes(type)) {
+    if (!tagName || typeof tagName !== 'string') return 'tagName must be a non-empty string';
+  }
   if (!label || typeof label !== 'string') return 'label must be a non-empty string';
   const cs = Number(colSpan);
   if (!Number.isInteger(cs) || cs < 1 || cs > 6) return 'colSpan must be an integer 1–6';
@@ -301,6 +306,73 @@ app.post('/api/widgets/reorder', (req, res) => {
   try {
     const reordered = widgetStore.reorder(ids);
     res.json({ ok: true, widgets: reordered });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── Export / Import ──────────────────────────────────────────────────────────
+
+// Export: returns a single JSON bundle of settings + tags + widgets
+app.get('/api/export', (req, res) => {
+  const bundle = {
+    exportedAt: new Date().toISOString(),
+    settings:   settingsModule.load(),
+    tags:       tagsModule.getAll(),
+    widgets:    widgetStore.getAll(),
+  };
+  res.setHeader('Content-Disposition', 'attachment; filename="dashboard-config.json"');
+  res.setHeader('Content-Type', 'application/json');
+  res.json(bundle);
+});
+
+// Import: accepts a bundle and restores settings + tags + widgets
+app.post('/api/import', (req, res) => {
+  const { settings, tags, widgets } = req.body;
+  const errors = [];
+
+  if (tags !== undefined) {
+    if (!Array.isArray(tags)) {
+      errors.push('tags must be an array');
+    } else {
+      tags.forEach((t, i) => {
+        const err = validateTag(t);
+        if (err) errors.push(`tags[${i}]: ${err}`);
+      });
+    }
+  }
+
+  if (widgets !== undefined) {
+    if (!Array.isArray(widgets)) {
+      errors.push('widgets must be an array');
+    } else {
+      widgets.forEach((w, i) => {
+        const err = validateWidget(w);
+        if (err) errors.push(`widgets[${i}]: ${err}`);
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ ok: false, errors });
+  }
+
+  try {
+    if (settings && typeof settings === 'object') {
+      settingsModule.save(settings);
+    }
+    if (Array.isArray(tags)) {
+      tagsModule.replaceAll(tags);
+    }
+    if (Array.isArray(widgets)) {
+      widgetStore.replaceAll(widgets);
+    }
+    // Reconnect PLC with (potentially updated) settings
+    if (settings && typeof settings === 'object') {
+      plcClient.disconnect();
+      tryConnectPlc(settingsModule.load());
+    }
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

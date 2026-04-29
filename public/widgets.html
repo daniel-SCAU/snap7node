@@ -125,11 +125,26 @@
             <span class="type-btn-name">Write Control</span>
             <span class="type-btn-desc">Input control to write values to PLC</span>
           </button>
+          <button class="type-btn" data-type="bargraph">
+            <span class="type-btn-icon">📊</span>
+            <span class="type-btn-name">Bar Graph</span>
+            <span class="type-btn-desc">Horizontal progress bar for numeric tags</span>
+          </button>
+          <button class="type-btn" data-type="iframe">
+            <span class="type-btn-icon">🖼️</span>
+            <span class="type-btn-name">IFrame</span>
+            <span class="type-btn-desc">Embed an external web page or camera URL</span>
+          </button>
+          <button class="type-btn" data-type="group">
+            <span class="type-btn-icon">🗂️</span>
+            <span class="type-btn-name">Group</span>
+            <span class="type-btn-desc">Display multiple tag values in one card</span>
+          </button>
         </div>
       </div>
 
-      <!-- Tag picker -->
-      <div class="form-group" style="margin-bottom:0">
+      <!-- Tag picker (hidden for iframe / group) -->
+      <div class="form-group" id="modal-tag-picker-group" style="margin-bottom:0">
         <label class="form-label" for="modal-tag-select">Linked Tag</label>
         <select class="form-input" id="modal-tag-select">
           <option value="">— select a tag —</option>
@@ -201,6 +216,56 @@
           </div>
         </div>
         <p class="form-hint">For Bool tags a toggle button is shown automatically; limits only apply to numeric tags.</p>
+      </div>
+
+      <!-- Bar Graph options -->
+      <div id="modal-bargraph-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label">Bar Graph Options</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-min">Min value</label>
+            <input class="form-input" id="modal-bargraph-min" type="number" placeholder="0" value="0" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-max">Max value</label>
+            <input class="form-input" id="modal-bargraph-max" type="number" placeholder="100" value="100" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-unit">Unit suffix</label>
+            <input class="form-input" id="modal-bargraph-unit" type="text" placeholder="e.g. °C, bar" maxlength="20" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-decimals">Decimal places</label>
+            <input class="form-input" id="modal-bargraph-decimals" type="number" min="0" max="6" value="1" />
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label class="form-label" style="font-size:0.75rem;margin-bottom:6px">Bar colour</label>
+          <div class="bar-color-grid" id="bargraph-color-grid">
+            <button class="bar-color-btn active" data-color="blue"   style="background:var(--accent-blue)"></button>
+            <button class="bar-color-btn"        data-color="green"  style="background:var(--accent-green)"></button>
+            <button class="bar-color-btn"        data-color="cyan"   style="background:var(--accent-cyan)"></button>
+            <button class="bar-color-btn"        data-color="yellow" style="background:var(--accent-yellow)"></button>
+            <button class="bar-color-btn"        data-color="red"    style="background:var(--accent-red)"></button>
+            <button class="bar-color-btn"        data-color="purple" style="background:var(--accent-purple)"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- IFrame options -->
+      <div id="modal-iframe-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label" for="modal-iframe-url">Embed URL</label>
+        <input class="form-input" id="modal-iframe-url" type="url" placeholder="http://192.168.1.73/" />
+        <p class="form-hint">The URL will be loaded inside the widget card. Use row-span 3–4 for best results.</p>
+      </div>
+
+      <!-- Group options -->
+      <div id="modal-group-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label" for="modal-group-tags">Tags to display</label>
+        <select class="form-input" id="modal-group-tags" multiple size="5">
+          <!-- populated by JS -->
+        </select>
+        <p class="form-hint">Hold <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> to select multiple tags.</p>
       </div>
 
     </div>

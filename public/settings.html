@@ -179,6 +179,43 @@
     ✅ Settings saved — reconnecting to PLC…
   </div>
 
+  <!-- Backup / Restore -->
+  <div class="settings-card" style="animation-delay:0.4s">
+    <div class="settings-card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-purple)" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Backup &amp; Restore
+    </div>
+
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:16px">
+      Export the full dashboard configuration (settings, tags and widget layout) to a JSON file.
+      You can import that file later to restore everything after a server update or migration.
+    </p>
+
+    <div class="btn-row" style="margin-bottom:0">
+      <button class="btn btn-secondary" id="export-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export Config
+      </button>
+      <button class="btn btn-secondary" id="import-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Import Config
+      </button>
+      <input type="file" id="import-file-input" accept=".json,application/json" style="display:none" />
+    </div>
+    <p class="form-hint" style="margin-top:10px">
+      ⚠️ Importing will <strong>replace</strong> all current settings, tags and widgets.
+    </p>
+  </div>
+
 </div>
 
 <!-- Toast container -->

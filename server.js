@@ -9,6 +9,7 @@ const cors = require('cors');
 const settingsModule = require('./src/settings');
 const plcClient = require('./src/plc');
 const tagsModule = require('./src/tags');
+const widgetStore = require('./src/widgetstore');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -218,6 +219,93 @@ app.post('/api/tags/:name/value', async (req, res) => {
   }
 });
 
+// ─── Widgets API ──────────────────────────────────────────────────────────────
+
+const VALID_WIDGET_TYPES = ['value', 'trend', 'indicator', 'write'];
+
+function validateWidget(body) {
+  const { id, type, tagName, label, colSpan, rowSpan } = body;
+  if (!id || typeof id !== 'string') return 'id must be a non-empty string';
+  if (!VALID_WIDGET_TYPES.includes(type)) return `type must be one of: ${VALID_WIDGET_TYPES.join(', ')}`;
+  if (!tagName || typeof tagName !== 'string') return 'tagName must be a non-empty string';
+  if (!label || typeof label !== 'string') return 'label must be a non-empty string';
+  const cs = Number(colSpan);
+  if (!Number.isInteger(cs) || cs < 1 || cs > 6) return 'colSpan must be an integer 1–6';
+  const rs = Number(rowSpan);
+  if (!Number.isInteger(rs) || rs < 1 || rs > 4) return 'rowSpan must be an integer 1–4';
+  return null;
+}
+
+// List all widgets
+app.get('/api/widgets', (req, res) => {
+  res.json({ ok: true, widgets: widgetStore.getAll() });
+});
+
+// Create a widget
+app.post('/api/widgets', (req, res) => {
+  const err = validateWidget(req.body);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { id, type, tagName, label, colSpan, rowSpan, config } = req.body;
+    const widget = {
+      id,
+      type,
+      tagName,
+      label,
+      colSpan: parseInt(colSpan, 10),
+      rowSpan: parseInt(rowSpan, 10),
+      config: config || {},
+    };
+    const created = widgetStore.create(widget);
+    res.status(201).json({ ok: true, widget: created });
+  } catch (e) {
+    res.status(409).json({ ok: false, error: e.message });
+  }
+});
+
+// Update a widget
+app.put('/api/widgets/:id', (req, res) => {
+  const err = validateWidget({ ...req.body, id: req.body.id || req.params.id });
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { type, tagName, label, colSpan, rowSpan, config } = req.body;
+    const patch = {
+      type,
+      tagName,
+      label,
+      colSpan: parseInt(colSpan, 10),
+      rowSpan: parseInt(rowSpan, 10),
+      config: config || {},
+    };
+    const updated = widgetStore.update(req.params.id, patch);
+    res.json({ ok: true, widget: updated });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+// Delete a widget
+app.delete('/api/widgets/:id', (req, res) => {
+  try {
+    widgetStore.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+// Reorder widgets
+app.post('/api/widgets/reorder', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ ok: false, error: 'ids must be an array' });
+  try {
+    const reordered = widgetStore.reorder(ids);
+    res.json({ ok: true, widgets: reordered });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ─── PLC polling ──────────────────────────────────────────────────────────────
 
 let plcPollTimer = null;
@@ -260,6 +348,20 @@ function startPolling(settings) {
       plcStatus.error = null;
       plcStatus.lastUpdate = new Date().toISOString();
       io.emit('plcData', { status: plcStatus, data });
+
+      // Read all user-defined tags and emit values for widget dashboard
+      const allTags = tagsModule.getAll();
+      if (allTags.length > 0) {
+        const tagValues = {};
+        for (const tag of allTags) {
+          try {
+            tagValues[tag.name] = await plcClient.readTag(tag);
+          } catch (_) {
+            tagValues[tag.name] = null;
+          }
+        }
+        io.emit('tagValues', tagValues);
+      }
     } catch (e) {
       plcStatus.connected = false;
       plcStatus.error = e.message;

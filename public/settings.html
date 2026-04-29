@@ -179,6 +179,58 @@
     ✅ Settings saved — reconnecting to PLC…
   </div>
 
+  <!-- Dashboard Grid Settings -->
+  <div class="settings-card" style="animation-delay:0.35s">
+    <div class="settings-card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard Grid
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="form-group">
+        <label class="form-label" for="s-grid-cols">Columns</label>
+        <input class="form-input" id="s-grid-cols" type="number" min="4" max="24" step="1" placeholder="12" />
+        <p class="form-hint">Grid column count (4–24)</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="s-grid-cell-height">Row Height (px)</label>
+        <input class="form-input" id="s-grid-cell-height" type="number" min="40" max="300" step="4" placeholder="80" />
+        <p class="form-hint">Height of each grid row (40–300)</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="s-grid-gap">Gap (px)</label>
+        <input class="form-input" id="s-grid-gap" type="number" min="0" max="40" step="2" placeholder="12" />
+        <p class="form-hint">Space between widgets (0–40)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme -->
+  <div class="settings-card" style="animation-delay:0.38s">
+    <div class="settings-card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      Dashboard Theme
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="s-theme">Theme</label>
+      <select class="form-input" id="s-theme">
+        <option value="dark">Dark (default)</option>
+        <option value="light">Light</option>
+        <option value="industrial">Industrial</option>
+        <option value="ocean">Ocean</option>
+      </select>
+      <p class="form-hint">Applies immediately and persists across sessions.</p>
+    </div>
+  </div>
+
   <!-- Backup / Restore -->
   <div class="settings-card" style="animation-delay:0.4s">
     <div class="settings-card-title">

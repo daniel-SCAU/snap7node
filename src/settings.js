@@ -12,6 +12,10 @@ const DEFAULT_SETTINGS = {
   cameraIp: '192.168.1.73',
   cameraUrl: 'http://192.168.1.73/',
   pollIntervalMs: 1000,
+  gridCols: 12,
+  gridCellHeight: 80,
+  gridGap: 12,
+  theme: 'dark',
 };
 
 function load() {

@@ -35,7 +35,12 @@ const fields = {
   pollIntervalMs:document.getElementById('pollIntervalMs'),
   cameraIp:      document.getElementById('cameraIp'),
   cameraUrl:     document.getElementById('cameraUrl'),
+  gridCols:      document.getElementById('s-grid-cols'),
+  gridCellHeight:document.getElementById('s-grid-cell-height'),
+  gridGap:       document.getElementById('s-grid-gap'),
 };
+
+const themeSelect = document.getElementById('s-theme');
 
 
 const systemEnableToggle = document.getElementById('systemEnable');
@@ -61,6 +66,10 @@ function applyToForm(data) {
     if (el && data[key] !== undefined) {
       el.value = data[key];
     }
+  }
+  if (themeSelect && data.theme) {
+    themeSelect.value = data.theme;
+    document.documentElement.setAttribute('data-theme', data.theme);
   }
 }
 
@@ -121,11 +130,15 @@ async function saveSettings() {
   for (const [key, el] of Object.entries(fields)) {
     if (!el) continue;
     const val = el.value.trim();
-    if (key === 'plcRack' || key === 'plcSlot' || key === 'pollIntervalMs') {
+    if (['plcRack', 'plcSlot', 'pollIntervalMs', 'gridCols', 'gridCellHeight', 'gridGap'].includes(key)) {
       payload[key] = parseInt(val, 10) || 0;
     } else {
       payload[key] = val;
     }
+  }
+  if (themeSelect) {
+    payload.theme = themeSelect.value;
+    document.documentElement.setAttribute('data-theme', themeSelect.value);
   }
 
   try {
@@ -251,6 +264,13 @@ document.addEventListener('DOMContentLoaded', () => {
         importConfig(file);
         importInput.value = '';
       }
+    });
+  }
+
+  // Theme select: live preview
+  if (themeSelect) {
+    themeSelect.addEventListener('change', () => {
+      document.documentElement.setAttribute('data-theme', themeSelect.value);
     });
   }
 

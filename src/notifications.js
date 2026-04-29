@@ -36,7 +36,7 @@ function getAll() {
 function create(rule) {
   const rules = load();
   if (rules.find((r) => r.id === rule.id)) {
-    throw new Error(`Notification rule "${rule.id}" already exists`);
+    throw new Error(`Notification rule "${rule.name || rule.id}" already exists`);
   }
   rules.push(rule);
   save(rules);
@@ -46,7 +46,7 @@ function create(rule) {
 function update(id, patch) {
   const rules = load();
   const idx = rules.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error(`Notification rule "${id}" not found`);
+  if (idx === -1) throw new Error(`Notification rule not found`);
   rules[idx] = Object.assign({}, rules[idx], patch);
   save(rules);
   return rules[idx];
@@ -55,7 +55,7 @@ function update(id, patch) {
 function remove(id) {
   const rules = load();
   const idx = rules.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error(`Notification rule "${id}" not found`);
+  if (idx === -1) throw new Error(`Notification rule not found`);
   rules.splice(idx, 1);
   save(rules);
 }

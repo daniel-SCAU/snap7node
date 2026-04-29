@@ -220,7 +220,7 @@ function getTagBadgeText(w) {
     return n + ' tag' + (n !== 1 ? 's' : '');
   }
   if (w.type === 'iframe') {
-    try { return new URL((w.config && w.config.url) || '').hostname || 'iframe'; } catch (_) { return 'iframe'; }
+    try { return new URL((w.config && w.config.url) || '').hostname || 'no URL'; } catch (_) { return 'invalid URL'; }
   }
   if (w.type === 'clock') return 'clock';
   return w.tagName || '';
@@ -739,8 +739,10 @@ function onPointerMove(e) {
     var cellW = (gridRect.width - (gridCols - 1) * gridGap) / gridCols;
     var relX = e.clientX - gridRect.left;
     var relY = e.clientY - gridRect.top;
-    var newX = Math.max(1, Math.min(gridCols - dragState.w + 1, Math.round(relX / (cellW + gridGap)) + 1));
-    var newY = Math.max(1, Math.round(relY / (gridCellHeight + gridGap)) + 1);
+    var rawX = Math.round(relX / (cellW + gridGap)) + 1;
+    var rawY = Math.round(relY / (gridCellHeight + gridGap)) + 1;
+    var newX = Math.max(1, Math.min(gridCols - dragState.w + 1, rawX));
+    var newY = Math.max(1, rawY);
     dragState.placeholder.style.gridColumn = newX + ' / span ' + dragState.w;
     dragState.placeholder.style.gridRow    = newY + ' / span ' + dragState.h;
     dragState.targetX = newX;
@@ -753,8 +755,10 @@ function onPointerMove(e) {
     var gridRect2 = grid2.getBoundingClientRect();
     var cellW2 = (gridRect2.width - (gridCols - 1) * gridGap) / gridCols;
     var cellH2 = gridCellHeight + gridGap;
-    var newW = Math.max(1, Math.min(gridCols - resizeState.origX + 1, resizeState.origW + Math.round(dx2 / (cellW2 + gridGap))));
-    var newH = Math.max(1, resizeState.origH + Math.round(dy2 / cellH2));
+    var rawW = resizeState.origW + Math.round(dx2 / (cellW2 + gridGap));
+    var rawH = resizeState.origH + Math.round(dy2 / cellH2);
+    var newW = Math.max(1, Math.min(gridCols - resizeState.origX + 1, rawW));
+    var newH = Math.max(1, rawH);
     resizeState.card.style.gridColumn = resizeState.origX + ' / span ' + newW;
     resizeState.card.style.gridRow    = resizeState.origY + ' / span ' + newH;
     resizeState.newW = newW;
@@ -895,18 +899,51 @@ function renderNotifList() {
     body.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px">No notification rules yet. Click "+ Add Rule" to create one.</p>';
     return;
   }
-  body.innerHTML = notificationRules.map(function(rule) {
-    return '<div class="notif-rule-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">' +
-      '<div>' +
-        '<span style="font-weight:600;font-size:0.9rem">' + escHtml(rule.name) + '</span>' +
-        '<span style="font-size:0.72rem;color:var(--text-muted);margin-left:8px">' + escHtml(rule.tagName) + ' ' + escHtml(rule.condition) + ' ' + escHtml(String(rule.threshold)) + '</span>' +
-        (!rule.enabled ? '<span style="font-size:0.7rem;color:var(--text-muted);margin-left:6px">(disabled)</span>' : '') +
-      '</div>' +
-      '<div style="display:flex;gap:8px">' +
-        '<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.75rem" onclick="openNotifRuleModal(\'' + escHtml(rule.id) + '\')">Edit</button>' +
-        '<button class="btn btn-secondary" style="padding:4px 10px;font-size:0.75rem;border-color:var(--accent-red)" onclick="deleteNotifRule(\'' + escHtml(rule.id) + '\')">Del</button>' +
-      '</div></div>';
-  }).join('');
+
+  // Build DOM nodes to avoid inline onclick XSS
+  body.innerHTML = '';
+  notificationRules.forEach(function(rule) {
+    var row = document.createElement('div');
+    row.className = 'notif-rule-row';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)';
+
+    var info = document.createElement('div');
+    var nameSpan = document.createElement('span');
+    nameSpan.style.cssText = 'font-weight:600;font-size:0.9rem';
+    nameSpan.textContent = rule.name;
+    var metaSpan = document.createElement('span');
+    metaSpan.style.cssText = 'font-size:0.72rem;color:var(--text-muted);margin-left:8px';
+    metaSpan.textContent = rule.tagName + ' ' + rule.condition + ' ' + rule.threshold;
+    info.appendChild(nameSpan);
+    info.appendChild(metaSpan);
+    if (!rule.enabled) {
+      var disSpan = document.createElement('span');
+      disSpan.style.cssText = 'font-size:0.7rem;color:var(--text-muted);margin-left:6px';
+      disSpan.textContent = '(disabled)';
+      info.appendChild(disSpan);
+    }
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px';
+
+    var editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-secondary';
+    editBtn.style.cssText = 'padding:4px 10px;font-size:0.75rem';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', function() { openNotifRuleModal(rule.id); });
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-secondary';
+    delBtn.style.cssText = 'padding:4px 10px;font-size:0.75rem;border-color:var(--accent-red)';
+    delBtn.textContent = 'Del';
+    delBtn.addEventListener('click', function() { deleteNotifRule(rule.id); });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    row.appendChild(info);
+    row.appendChild(actions);
+    body.appendChild(row);
+  });
 }
 
 function openNotifRuleModal(id) {

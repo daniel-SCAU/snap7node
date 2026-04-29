@@ -305,7 +305,7 @@ function buildWidgetBody(w) {
       if (!url) {
         return `<span style="color:var(--text-muted);font-size:0.8rem">No URL configured</span>`;
       }
-      return `<iframe class="widget-iframe" src="${escHtml(url)}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>`;
+      return `<iframe class="widget-iframe" src="${escHtml(url)}" loading="lazy" sandbox="allow-scripts allow-forms"></iframe>`;
     }
 
     case 'group': {

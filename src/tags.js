@@ -75,6 +75,10 @@ function remove(name) {
   save(tags);
 }
 
+/**
+ * Replace the entire tag list. Validation must be performed by the caller
+ * (see server.js /api/import) before invoking this function.
+ */
 function replaceAll(newTags) {
   save(newTags);
 }

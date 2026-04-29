@@ -85,4 +85,12 @@ function reorder(ids) {
   return reordered;
 }
 
-module.exports = { getAll, create, update, remove, reorder };
+/**
+ * Replace the entire widget list. Validation must be performed by the caller
+ * (see server.js /api/import) before invoking this function.
+ */
+function replaceAll(newWidgets) {
+  save(newWidgets);
+}
+
+module.exports = { getAll, create, update, remove, reorder, replaceAll };

@@ -12,6 +12,9 @@
 </head>
 <body>
 
+<!-- Notification Banner Area -->
+<div id="notification-banner-area"></div>
+
 <!-- ── Top Navbar ──────────────────────────────────────────────────────────── -->
 <nav class="navbar">
   <a class="navbar-brand" href="/">
@@ -56,6 +59,15 @@
       <p>Configurable widgets linked to PLC tags. Click <strong>Edit Layout</strong> to add, arrange and resize widgets.</p>
     </div>
     <div class="toolbar-actions">
+      <button class="btn btn-secondary" id="theme-btn" title="Switch Theme">
+        🎨 Theme
+      </button>
+      <button class="btn btn-secondary" id="notifications-btn" title="Notification Rules">
+        🔔 Alerts
+      </button>
+      <button class="btn btn-secondary" id="grid-settings-btn" title="Grid Settings">
+        ⚙️ Grid
+      </button>
       <button class="btn btn-secondary" id="edit-toggle-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -125,11 +137,46 @@
             <span class="type-btn-name">Write Control</span>
             <span class="type-btn-desc">Input control to write values to PLC</span>
           </button>
+          <button class="type-btn" data-type="bargraph">
+            <span class="type-btn-icon">📊</span>
+            <span class="type-btn-name">Bar Graph</span>
+            <span class="type-btn-desc">Horizontal progress bar for numeric tags</span>
+          </button>
+          <button class="type-btn" data-type="iframe">
+            <span class="type-btn-icon">🖼️</span>
+            <span class="type-btn-name">IFrame</span>
+            <span class="type-btn-desc">Embed an external web page or camera URL</span>
+          </button>
+          <button class="type-btn" data-type="group">
+            <span class="type-btn-icon">🗂️</span>
+            <span class="type-btn-name">Group</span>
+            <span class="type-btn-desc">Display multiple tag values in one card</span>
+          </button>
+          <button class="type-btn" data-type="gauge">
+            <span class="type-btn-icon">🎯</span>
+            <span class="type-btn-name">Gauge</span>
+            <span class="type-btn-desc">Circular arc gauge for numeric values</span>
+          </button>
+          <button class="type-btn" data-type="button">
+            <span class="type-btn-icon">🔘</span>
+            <span class="type-btn-name">Button</span>
+            <span class="type-btn-desc">Large toggle/action button</span>
+          </button>
+          <button class="type-btn" data-type="clock">
+            <span class="type-btn-icon">🕐</span>
+            <span class="type-btn-name">Clock</span>
+            <span class="type-btn-desc">Live date and time display</span>
+          </button>
+          <button class="type-btn" data-type="slider">
+            <span class="type-btn-icon">🎚️</span>
+            <span class="type-btn-name">Slider</span>
+            <span class="type-btn-desc">Range slider to write numeric values</span>
+          </button>
         </div>
       </div>
 
-      <!-- Tag picker -->
-      <div class="form-group" style="margin-bottom:0">
+      <!-- Tag picker (hidden for iframe / group) -->
+      <div class="form-group" id="modal-tag-picker-group" style="margin-bottom:0">
         <label class="form-label" for="modal-tag-select">Linked Tag</label>
         <select class="form-input" id="modal-tag-select">
           <option value="">— select a tag —</option>
@@ -203,6 +250,116 @@
         <p class="form-hint">For Bool tags a toggle button is shown automatically; limits only apply to numeric tags.</p>
       </div>
 
+      <!-- Bar Graph options -->
+      <div id="modal-bargraph-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label">Bar Graph Options</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-min">Min value</label>
+            <input class="form-input" id="modal-bargraph-min" type="number" placeholder="0" value="0" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-max">Max value</label>
+            <input class="form-input" id="modal-bargraph-max" type="number" placeholder="100" value="100" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-unit">Unit suffix</label>
+            <input class="form-input" id="modal-bargraph-unit" type="text" placeholder="e.g. °C, bar" maxlength="20" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-bargraph-decimals">Decimal places</label>
+            <input class="form-input" id="modal-bargraph-decimals" type="number" min="0" max="6" value="1" />
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label class="form-label" style="font-size:0.75rem;margin-bottom:6px">Bar colour</label>
+          <div class="bar-color-grid" id="bargraph-color-grid">
+            <button class="bar-color-btn active" data-color="blue"   style="background:var(--accent-blue)"></button>
+            <button class="bar-color-btn"        data-color="green"  style="background:var(--accent-green)"></button>
+            <button class="bar-color-btn"        data-color="cyan"   style="background:var(--accent-cyan)"></button>
+            <button class="bar-color-btn"        data-color="yellow" style="background:var(--accent-yellow)"></button>
+            <button class="bar-color-btn"        data-color="red"    style="background:var(--accent-red)"></button>
+            <button class="bar-color-btn"        data-color="purple" style="background:var(--accent-purple)"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- IFrame options -->
+      <div id="modal-iframe-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label" for="modal-iframe-url">Embed URL</label>
+        <input class="form-input" id="modal-iframe-url" type="url" placeholder="http://192.168.1.73/" />
+        <p class="form-hint">The URL will be loaded inside the widget card. Use row-span 3–4 for best results.</p>
+      </div>
+
+      <!-- Group options -->
+      <div id="modal-group-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label" id="modal-group-tags-label" for="modal-group-tags">Tags to display</label>
+        <select class="form-input" id="modal-group-tags" multiple size="5" aria-labelledby="modal-group-tags-label">
+          <!-- populated by JS -->
+        </select>
+        <p class="form-hint">Hold <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> to select multiple tags.</p>
+      </div>
+
+      <!-- Gauge options -->
+      <div id="modal-gauge-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label">Gauge Options</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-gauge-min">Min value</label>
+            <input class="form-input" id="modal-gauge-min" type="number" placeholder="0" value="0" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-gauge-max">Max value</label>
+            <input class="form-input" id="modal-gauge-max" type="number" placeholder="100" value="100" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-gauge-unit">Unit</label>
+            <input class="form-input" id="modal-gauge-unit" type="text" placeholder="°C" maxlength="20" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-gauge-decimals">Decimals</label>
+            <input class="form-input" id="modal-gauge-decimals" type="number" min="0" max="6" value="1" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Slider options -->
+      <div id="modal-slider-opts" class="form-group hidden" style="margin-bottom:0">
+        <label class="form-label">Slider Options</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-slider-min">Min</label>
+            <input class="form-input" id="modal-slider-min" type="number" placeholder="0" value="0" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-slider-max">Max</label>
+            <input class="form-input" id="modal-slider-max" type="number" placeholder="100" value="100" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-slider-step">Step</label>
+            <input class="form-input" id="modal-slider-step" type="number" min="0.001" value="1" placeholder="1" />
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label class="form-label" style="font-size:0.75rem;margin-bottom:4px" for="modal-slider-unit">Unit</label>
+          <input class="form-input" id="modal-slider-unit" type="text" placeholder="e.g. °C" maxlength="20" />
+        </div>
+      </div>
+
+      <!-- Widget Accent Color -->
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Accent Colour</label>
+        <div class="widget-color-grid" id="widget-color-grid">
+          <button class="widget-color-btn active" data-color="none" title="None"></button>
+          <button class="widget-color-btn" data-color="blue"   style="background:var(--accent-blue)"></button>
+          <button class="widget-color-btn" data-color="green"  style="background:var(--accent-green)"></button>
+          <button class="widget-color-btn" data-color="cyan"   style="background:var(--accent-cyan)"></button>
+          <button class="widget-color-btn" data-color="yellow" style="background:var(--accent-yellow)"></button>
+          <button class="widget-color-btn" data-color="red"    style="background:var(--accent-red)"></button>
+          <button class="widget-color-btn" data-color="purple" style="background:var(--accent-purple)"></button>
+        </div>
+      </div>
+
     </div>
     <div class="widget-modal-footer">
       <button class="btn btn-secondary" id="widget-modal-cancel">Cancel</button>
@@ -212,6 +369,157 @@
         </svg>
         Save Widget
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Grid Settings Modal ─────────────────────────────────────────────────── -->
+<div id="grid-settings-modal" class="modal-backdrop hidden" role="dialog">
+  <div class="widget-modal-dialog" style="max-width:400px">
+    <div class="widget-modal-header">
+      <span class="widget-modal-title">⚙️ Grid Settings</span>
+      <button class="modal-close" id="grid-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="widget-modal-body">
+      <div class="form-group">
+        <label class="form-label" for="grid-cols-input">Columns</label>
+        <input class="form-input" id="grid-cols-input" type="number" min="4" max="24" value="12" />
+        <p class="form-hint">Number of grid columns (4–24). Widgets snap to this grid.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="grid-cell-height-input">Cell Height (px)</label>
+        <input class="form-input" id="grid-cell-height-input" type="number" min="40" max="300" value="80" />
+        <p class="form-hint">Height of one grid row in pixels (40–300).</p>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="grid-gap-input">Gap (px)</label>
+        <input class="form-input" id="grid-gap-input" type="number" min="0" max="40" value="12" />
+        <p class="form-hint">Gap between widgets in pixels.</p>
+      </div>
+    </div>
+    <div class="widget-modal-footer">
+      <button class="btn btn-secondary" id="grid-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="grid-modal-save">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Notifications Modal ─────────────────────────────────────────────────── -->
+<div id="notifications-modal" class="modal-backdrop hidden" role="dialog">
+  <div class="widget-modal-dialog" style="max-width:600px">
+    <div class="widget-modal-header">
+      <span class="widget-modal-title">🔔 Notification Rules</span>
+      <button class="modal-close" id="notif-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="widget-modal-body" id="notif-modal-body">
+      <!-- Rule list inserted by JS -->
+    </div>
+    <div class="widget-modal-footer">
+      <button class="btn btn-secondary" id="notif-modal-close-btn">Close</button>
+      <button class="btn btn-primary" id="notif-add-rule-btn">+ Add Rule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Notification Rule Edit Modal ───────────────────────────────────────── -->
+<div id="notif-rule-modal" class="modal-backdrop hidden" role="dialog">
+  <div class="widget-modal-dialog" style="max-width:440px">
+    <div class="widget-modal-header">
+      <span class="widget-modal-title" id="notif-rule-modal-title">Add Rule</span>
+      <button class="modal-close" id="notif-rule-modal-close">✕</button>
+    </div>
+    <div class="widget-modal-body">
+      <div class="form-group">
+        <label class="form-label" for="nr-name">Rule Name</label>
+        <input class="form-input" id="nr-name" type="text" placeholder="e.g. High Pressure" maxlength="60" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nr-tag">Tag</label>
+        <select class="form-input" id="nr-tag">
+          <option value="">— select tag —</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0">
+        <div>
+          <label class="form-label" for="nr-condition">Condition</label>
+          <select class="form-input" id="nr-condition">
+            <option value="gt">&gt; greater than</option>
+            <option value="gte">&ge; greater or equal</option>
+            <option value="lt">&lt; less than</option>
+            <option value="lte">&le; less or equal</option>
+            <option value="eq">= equal</option>
+            <option value="ne">≠ not equal</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="nr-threshold">Threshold</label>
+          <input class="form-input" id="nr-threshold" type="number" placeholder="0" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label" for="nr-message">Message</label>
+        <input class="form-input" id="nr-message" type="text" placeholder="Alert message text" maxlength="120" />
+      </div>
+      <div class="form-group" style="margin-bottom:0;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label" for="nr-severity">Severity</label>
+          <select class="form-input" id="nr-severity">
+            <option value="info">ℹ️ Info</option>
+            <option value="warning">⚠️ Warning</option>
+            <option value="error">🚨 Error</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:2px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="nr-enabled" checked />
+            <span class="form-label" style="margin-bottom:0">Enabled</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="widget-modal-footer">
+      <button class="btn btn-secondary" id="notif-rule-cancel">Cancel</button>
+      <button class="btn btn-primary" id="notif-rule-save">Save Rule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Theme Picker Modal ──────────────────────────────────────────────────── -->
+<div id="theme-modal" class="modal-backdrop hidden" role="dialog">
+  <div class="widget-modal-dialog" style="max-width:360px">
+    <div class="widget-modal-header">
+      <span class="widget-modal-title">🎨 Theme</span>
+      <button class="modal-close" id="theme-modal-close">✕</button>
+    </div>
+    <div class="widget-modal-body">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Select Dashboard Theme</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+          <button class="type-btn" data-theme-opt="dark">
+            <span class="type-btn-icon">🌑</span>
+            <span class="type-btn-name">Dark</span>
+            <span class="type-btn-desc">Default dark dashboard</span>
+          </button>
+          <button class="type-btn" data-theme-opt="light">
+            <span class="type-btn-icon">☀️</span>
+            <span class="type-btn-name">Light</span>
+            <span class="type-btn-desc">Clean light theme</span>
+          </button>
+          <button class="type-btn" data-theme-opt="industrial">
+            <span class="type-btn-icon">🏭</span>
+            <span class="type-btn-name">Industrial</span>
+            <span class="type-btn-desc">Amber on dark</span>
+          </button>
+          <button class="type-btn" data-theme-opt="ocean">
+            <span class="type-btn-icon">🌊</span>
+            <span class="type-btn-name">Ocean</span>
+            <span class="type-btn-desc">Deep blue-teal</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="widget-modal-footer">
+      <button class="btn btn-secondary" id="theme-modal-close-btn">Close</button>
     </div>
   </div>
 </div>

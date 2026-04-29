@@ -10,6 +10,7 @@ const settingsModule = require('./src/settings');
 const plcClient = require('./src/plc');
 const tagsModule = require('./src/tags');
 const widgetStore = require('./src/widgetstore');
+const notificationsModule = require('./src/notifications');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -221,18 +222,50 @@ app.post('/api/tags/:name/value', async (req, res) => {
 
 // ─── Widgets API ──────────────────────────────────────────────────────────────
 
-const VALID_WIDGET_TYPES = ['value', 'trend', 'indicator', 'write'];
+const VALID_WIDGET_TYPES = ['value', 'trend', 'indicator', 'write', 'bargraph', 'iframe', 'group', 'gauge', 'button', 'clock', 'slider'];
+
+// Widget types that do not require a linked tag
+const TAGLESS_WIDGET_TYPES = ['iframe', 'group', 'clock'];
 
 function validateWidget(body) {
-  const { id, type, tagName, label, colSpan, rowSpan } = body;
+  const { id, type, tagName, label, colSpan, rowSpan, x, y, w, h } = body;
   if (!id || typeof id !== 'string') return 'id must be a non-empty string';
   if (!VALID_WIDGET_TYPES.includes(type)) return `type must be one of: ${VALID_WIDGET_TYPES.join(', ')}`;
-  if (!tagName || typeof tagName !== 'string') return 'tagName must be a non-empty string';
+  if (!TAGLESS_WIDGET_TYPES.includes(type)) {
+    if (!tagName || typeof tagName !== 'string') return 'tagName must be a non-empty string';
+  }
   if (!label || typeof label !== 'string') return 'label must be a non-empty string';
-  const cs = Number(colSpan);
-  if (!Number.isInteger(cs) || cs < 1 || cs > 6) return 'colSpan must be an integer 1–6';
-  const rs = Number(rowSpan);
-  if (!Number.isInteger(rs) || rs < 1 || rs > 4) return 'rowSpan must be an integer 1–4';
+
+  const hasSpan = colSpan !== undefined || rowSpan !== undefined;
+  const hasDims = w !== undefined || h !== undefined;
+
+  if (!hasSpan && !hasDims) {
+    return 'widget must have either (colSpan, rowSpan) or (w, h)';
+  }
+
+  if (hasSpan) {
+    const cs = Number(colSpan);
+    if (!Number.isInteger(cs) || cs < 1) return 'colSpan must be a positive integer';
+    const rs = Number(rowSpan);
+    if (!Number.isInteger(rs) || rs < 1) return 'rowSpan must be a positive integer';
+  }
+
+  if (hasDims) {
+    const wn = Number(w);
+    if (!Number.isInteger(wn) || wn < 1) return 'w must be a positive integer';
+    const hn = Number(h);
+    if (!Number.isInteger(hn) || hn < 1) return 'h must be a positive integer';
+  }
+
+  if (x !== undefined) {
+    const xn = Number(x);
+    if (!Number.isInteger(xn) || xn < 1) return 'x must be a positive integer';
+  }
+  if (y !== undefined) {
+    const yn = Number(y);
+    if (!Number.isInteger(yn) || yn < 1) return 'y must be a positive integer';
+  }
+
   return null;
 }
 
@@ -246,16 +279,21 @@ app.post('/api/widgets', (req, res) => {
   const err = validateWidget(req.body);
   if (err) return res.status(400).json({ ok: false, error: err });
   try {
-    const { id, type, tagName, label, colSpan, rowSpan, config } = req.body;
+    const { id, type, tagName, label, colSpan, rowSpan, config, x, y, w, h, accentColor } = req.body;
     const widget = {
       id,
       type,
       tagName,
       label,
-      colSpan: parseInt(colSpan, 10),
-      rowSpan: parseInt(rowSpan, 10),
+      colSpan: colSpan !== undefined ? parseInt(colSpan, 10) : (w !== undefined ? parseInt(w, 10) : 2),
+      rowSpan: rowSpan !== undefined ? parseInt(rowSpan, 10) : (h !== undefined ? parseInt(h, 10) : 1),
       config: config || {},
     };
+    if (x !== undefined) widget.x = parseInt(x, 10);
+    if (y !== undefined) widget.y = parseInt(y, 10);
+    if (w !== undefined) widget.w = parseInt(w, 10);
+    if (h !== undefined) widget.h = parseInt(h, 10);
+    if (accentColor !== undefined) widget.accentColor = accentColor;
     const created = widgetStore.create(widget);
     res.status(201).json({ ok: true, widget: created });
   } catch (e) {
@@ -268,15 +306,22 @@ app.put('/api/widgets/:id', (req, res) => {
   const err = validateWidget({ ...req.body, id: req.body.id || req.params.id });
   if (err) return res.status(400).json({ ok: false, error: err });
   try {
-    const { type, tagName, label, colSpan, rowSpan, config } = req.body;
+    const { type, tagName, label, colSpan, rowSpan, config, x, y, w, h, accentColor } = req.body;
     const patch = {
       type,
       tagName,
       label,
-      colSpan: parseInt(colSpan, 10),
-      rowSpan: parseInt(rowSpan, 10),
+      colSpan: colSpan !== undefined ? parseInt(colSpan, 10) : (w !== undefined ? parseInt(w, 10) : undefined),
+      rowSpan: rowSpan !== undefined ? parseInt(rowSpan, 10) : (h !== undefined ? parseInt(h, 10) : undefined),
       config: config || {},
     };
+    if (patch.colSpan === undefined) delete patch.colSpan;
+    if (patch.rowSpan === undefined) delete patch.rowSpan;
+    if (x !== undefined) patch.x = parseInt(x, 10);
+    if (y !== undefined) patch.y = parseInt(y, 10);
+    if (w !== undefined) patch.w = parseInt(w, 10);
+    if (h !== undefined) patch.h = parseInt(h, 10);
+    if (accentColor !== undefined) patch.accentColor = accentColor;
     const updated = widgetStore.update(req.params.id, patch);
     res.json({ ok: true, widget: updated });
   } catch (e) {
@@ -301,6 +346,161 @@ app.post('/api/widgets/reorder', (req, res) => {
   try {
     const reordered = widgetStore.reorder(ids);
     res.json({ ok: true, widgets: reordered });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── Notifications API ────────────────────────────────────────────────────────
+
+const VALID_CONDITIONS = notificationsModule.VALID_CONDITIONS;
+const VALID_SEVERITIES = notificationsModule.VALID_SEVERITIES;
+
+function validateNotificationRule(body) {
+  const { id, name, tagName, condition, threshold, severity, enabled } = body;
+  if (!id || typeof id !== 'string') return 'id must be a non-empty string';
+  if (!name || typeof name !== 'string') return 'name must be a non-empty string';
+  if (tagName !== undefined && tagName !== '' && typeof tagName !== 'string') return 'tagName must be a string';
+  if (!VALID_CONDITIONS.includes(condition)) return `condition must be one of: ${VALID_CONDITIONS.join(', ')}`;
+  if (threshold === undefined || threshold === null || !Number.isFinite(Number(threshold))) return 'threshold must be a number';
+  if (!VALID_SEVERITIES.includes(severity)) return `severity must be one of: ${VALID_SEVERITIES.join(', ')}`;
+  if (enabled !== undefined && typeof enabled !== 'boolean') return 'enabled must be a boolean';
+  return null;
+}
+
+app.get('/api/notifications', (req, res) => {
+  res.json({ ok: true, rules: notificationsModule.getAll() });
+});
+
+app.post('/api/notifications', (req, res) => {
+  const err = validateNotificationRule(req.body);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { id, name, tagName, condition, threshold, message, severity, enabled } = req.body;
+    const rule = {
+      id,
+      name,
+      tagName: tagName || '',
+      condition,
+      threshold: Number(threshold),
+      message: message || '',
+      severity,
+      enabled: enabled !== false,
+    };
+    const created = notificationsModule.create(rule);
+    res.status(201).json({ ok: true, rule: created });
+  } catch (e) {
+    res.status(409).json({ ok: false, error: e.message });
+  }
+});
+
+app.put('/api/notifications/:id', (req, res) => {
+  const err = validateNotificationRule({ ...req.body, id: req.body.id || req.params.id });
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { name, tagName, condition, threshold, message, severity, enabled } = req.body;
+    const patch = {
+      name,
+      tagName: tagName || '',
+      condition,
+      threshold: Number(threshold),
+      message: message || '',
+      severity,
+      enabled: enabled !== false,
+    };
+    const updated = notificationsModule.update(req.params.id, patch);
+    res.json({ ok: true, rule: updated });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+app.delete('/api/notifications/:id', (req, res) => {
+  try {
+    notificationsModule.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── Export / Import ──────────────────────────────────────────────────────────
+
+// Export: returns a single JSON bundle of settings + tags + widgets
+app.get('/api/export', (req, res) => {
+  const bundle = {
+    exportedAt: new Date().toISOString(),
+    settings:      settingsModule.load(),
+    tags:          tagsModule.getAll(),
+    widgets:       widgetStore.getAll(),
+    notifications: notificationsModule.getAll(),
+  };
+  res.setHeader('Content-Disposition', 'attachment; filename="dashboard-config.json"');
+  res.setHeader('Content-Type', 'application/json');
+  res.json(bundle);
+});
+
+// Import: accepts a bundle and restores settings + tags + widgets
+app.post('/api/import', (req, res) => {
+  const { settings, tags, widgets, notifications } = req.body;
+  const errors = [];
+
+  if (tags !== undefined) {
+    if (!Array.isArray(tags)) {
+      errors.push('tags must be an array');
+    } else {
+      tags.forEach((t, i) => {
+        const err = validateTag(t);
+        if (err) errors.push(`tags[${i}]: ${err}`);
+      });
+    }
+  }
+
+  if (widgets !== undefined) {
+    if (!Array.isArray(widgets)) {
+      errors.push('widgets must be an array');
+    } else {
+      widgets.forEach((w, i) => {
+        const err = validateWidget(w);
+        if (err) errors.push(`widgets[${i}]: ${err}`);
+      });
+    }
+  }
+
+  if (notifications !== undefined) {
+    if (!Array.isArray(notifications)) {
+      errors.push('notifications must be an array');
+    } else {
+      notifications.forEach((n, i) => {
+        const err = validateNotificationRule(n);
+        if (err) errors.push(`notifications[${i}]: ${err}`);
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ ok: false, errors });
+  }
+
+  try {
+    if (settings && typeof settings === 'object') {
+      settingsModule.save(settings);
+    }
+    if (Array.isArray(tags)) {
+      tagsModule.replaceAll(tags);
+    }
+    if (Array.isArray(widgets)) {
+      widgetStore.replaceAll(widgets);
+    }
+    if (Array.isArray(notifications)) {
+      notificationsModule.replaceAll(notifications);
+    }
+    // Reconnect PLC with (potentially updated) settings
+    if (settings && typeof settings === 'object') {
+      plcClient.disconnect();
+      tryConnectPlc(settingsModule.load());
+    }
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

@@ -75,4 +75,12 @@ function remove(name) {
   save(tags);
 }
 
-module.exports = { getAll, getByName, create, update, remove };
+/**
+ * Replace the entire tag list. Validation must be performed by the caller
+ * (see server.js /api/import) before invoking this function.
+ */
+function replaceAll(newTags) {
+  save(newTags);
+}
+
+module.exports = { getAll, getByName, create, update, remove, replaceAll };

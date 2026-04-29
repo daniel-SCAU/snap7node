@@ -35,7 +35,12 @@ const fields = {
   pollIntervalMs:document.getElementById('pollIntervalMs'),
   cameraIp:      document.getElementById('cameraIp'),
   cameraUrl:     document.getElementById('cameraUrl'),
+  gridCols:      document.getElementById('s-grid-cols'),
+  gridCellHeight:document.getElementById('s-grid-cell-height'),
+  gridGap:       document.getElementById('s-grid-gap'),
 };
+
+const themeSelect = document.getElementById('s-theme');
 
 
 const systemEnableToggle = document.getElementById('systemEnable');
@@ -61,6 +66,10 @@ function applyToForm(data) {
     if (el && data[key] !== undefined) {
       el.value = data[key];
     }
+  }
+  if (themeSelect && data.theme) {
+    themeSelect.value = data.theme;
+    document.documentElement.setAttribute('data-theme', data.theme);
   }
 }
 
@@ -121,11 +130,15 @@ async function saveSettings() {
   for (const [key, el] of Object.entries(fields)) {
     if (!el) continue;
     const val = el.value.trim();
-    if (key === 'plcRack' || key === 'plcSlot' || key === 'pollIntervalMs') {
+    if (['plcRack', 'plcSlot', 'pollIntervalMs', 'gridCols', 'gridCellHeight', 'gridGap'].includes(key)) {
       payload[key] = parseInt(val, 10) || 0;
     } else {
       payload[key] = val;
     }
+  }
+  if (themeSelect) {
+    payload.theme = themeSelect.value;
+    document.documentElement.setAttribute('data-theme', themeSelect.value);
   }
 
   try {
@@ -175,6 +188,46 @@ async function writeSystemEnable(value) {
   }
 }
 
+/* ── Export / Import ─────────────────────────────────────────────────────── */
+
+function exportConfig() {
+  const link = document.createElement('a');
+  link.href = '/api/export';
+  link.download = 'dashboard-config.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  showToast('Configuration download started', 'success', 3000);
+}
+
+async function importConfig(file) {
+  let bundle;
+  try {
+    bundle = JSON.parse(await file.text());
+  } catch (_) {
+    showToast('Invalid JSON file', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bundle),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('Configuration imported — reloading…', 'success', 3000);
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      const detail = json.errors ? json.errors.join('; ') : (json.error || 'Unknown error');
+      showToast('Import failed: ' + detail, 'error');
+    }
+  } catch (e) {
+    showToast('Import error: ' + e.message, 'error');
+  }
+}
+
 /* ── Wire up events ──────────────────────────────────────────────────────── */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -195,6 +248,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (triggerOffsetValue) triggerOffsetValue.textContent = '500 ms';
       }
       showToast('Form reset to defaults (not saved yet)', 'info');
+    });
+  }
+
+  const exportBtn = document.getElementById('export-btn');
+  if (exportBtn) exportBtn.addEventListener('click', exportConfig);
+
+  const importBtn = document.getElementById('import-btn');
+  const importInput = document.getElementById('import-file-input');
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', () => {
+      const file = importInput.files && importInput.files[0];
+      if (file) {
+        importConfig(file);
+        importInput.value = '';
+      }
+    });
+  }
+
+  // Theme select: live preview
+  if (themeSelect) {
+    themeSelect.addEventListener('change', () => {
+      document.documentElement.setAttribute('data-theme', themeSelect.value);
     });
   }
 

@@ -253,15 +253,15 @@ watch(() => state.data, (data) => {
   historyLabels.value = [...historyLabels.value.slice(1), label]
 })
 
-// Toast on read events
-let prevGood = null
-let prevBad  = null
+// Toast on read events — use refs to keep state local to this component instance
+const prevGood = ref(null)
+const prevBad  = ref(null)
 watch(() => state.data, (data) => {
   if (!data) return
-  if (prevGood !== null && !prevGood && data.lastReadGood) toast({ message: '✅ Good Read detected!', color: 'success', duration: 3000 })
-  if (prevBad  !== null && !prevBad  && data.lastReadBad)  toast({ message: '❌ Bad Read detected!',  color: 'danger',  duration: 3000 })
-  prevGood = data.lastReadGood
-  prevBad  = data.lastReadBad
+  if (prevGood.value !== null && !prevGood.value && data.lastReadGood) toast({ message: '✅ Good Read detected!', color: 'success', duration: 3000 })
+  if (prevBad.value  !== null && !prevBad.value  && data.lastReadBad)  toast({ message: '❌ Bad Read detected!',  color: 'danger',  duration: 3000 })
+  prevGood.value = data.lastReadGood
+  prevBad.value  = data.lastReadBad
 })
 
 // New Batch keypad

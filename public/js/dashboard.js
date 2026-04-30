@@ -59,7 +59,9 @@ const els = {
   currentBatchDetail: document.getElementById('val-currentBatchDetail'),
   mesBatchDetail:   document.getElementById('val-mesBatchDetail'),
 
-  oee:              document.getElementById('val-oee'),
+  bagsPerMin:       document.getElementById('val-bagsPerMin'),
+  goodBadRatio:     document.getElementById('val-goodBadRatio'),
+
   batchStr:         document.getElementById('val-batchStr'),
   lastBatchStartStr:document.getElementById('val-lastBatchStartStr'),
   lastBatchBBStr:   document.getElementById('val-lastBatchBBStr'),
@@ -68,18 +70,6 @@ const els = {
   beforeDateDInt:   document.getElementById('val-beforeDateDInt'),
   prodDateDInt:     document.getElementById('val-prodDateDInt'),
   bagNoDInt:        document.getElementById('val-bagNoDInt'),
-
-  lastGoodCountTotal:   document.getElementById('val-lastGoodCountTotal'),
-  lastRejectCountTotal: document.getElementById('val-lastRejectCountTotal'),
-  deltaGood:            document.getElementById('val-deltaGood'),
-  deltaReject:          document.getElementById('val-deltaReject'),
-  internalTimestamp_s:  document.getElementById('val-internalTimestamp'),
-  logTimer_s:           document.getElementById('val-logTimer'),
-  logSequence:          document.getElementById('val-logSequence'),
-  availability:         document.getElementById('val-availability'),
-  performance:          document.getElementById('val-performance'),
-  quality:              document.getElementById('val-quality'),
-  oeeReal:              document.getElementById('val-oeeReal'),
 
   qualityPct:       document.getElementById('quality-pct'),
   qualityBar:       document.getElementById('quality-bar'),
@@ -150,20 +140,9 @@ function renderData(data) {
   if (els.progressGoodLabel) els.progressGoodLabel.textContent = `Good: ${fmt(data.goodReads)}`;
   if (els.progressTotalLabel) els.progressTotalLabel.textContent = `Total: ${fmt(total)}`;
 
-  // OEE metric card – use PLC-calculated value when available, fall back to ratio
-  if (els.oee) {
-    if (data.oee != null && data.totalBags > 0) {
-      setValueAnimated(els.oee, (data.oee * 100).toFixed(1) + '%');
-    } else {
-      const oeeTotal = data.totalBags || 0;
-      if (oeeTotal > 0) {
-        const oeePct = Math.round(((data.goodReads || 0) / oeeTotal) * 100);
-        setValueAnimated(els.oee, oeePct + '%');
-      } else {
-        setValueAnimated(els.oee, 'N/A');
-      }
-    }
-  }
+  // New metric cards: bags per min and good/bad ratio
+  setValueAnimated(els.bagsPerMin,    data.bagsPerMin != null ? fmt(data.bagsPerMin) : '—');
+  setValueAnimated(els.goodBadRatio,  data.goodBadRatio != null ? data.goodBadRatio.toFixed(3) : '—');
 
   // Batch data
   setValueAnimated(els.batchStr,          data.batchStr          || '—');
@@ -175,19 +154,6 @@ function renderData(data) {
   setValueAnimated(els.beforeDateDInt, fmtId(data.beforeDateDInt));
   setValueAnimated(els.prodDateDInt,   fmtId(data.prodDateDInt));
   setValueAnimated(els.bagNoDInt,      fmtId(data.bagNoDInt));
-
-  // OEE data
-  setValueAnimated(els.lastGoodCountTotal,   fmt(data.lastGoodCountTotal));
-  setValueAnimated(els.lastRejectCountTotal, fmt(data.lastRejectCountTotal));
-  setValueAnimated(els.deltaGood,            fmt(data.deltaGood));
-  setValueAnimated(els.deltaReject,          fmt(data.deltaReject));
-  setValueAnimated(els.internalTimestamp_s,  data.internalTimestamp_s != null ? data.internalTimestamp_s.toFixed(3) : '—');
-  setValueAnimated(els.logTimer_s,           data.logTimer_s != null ? data.logTimer_s.toFixed(3) : '—');
-  setValueAnimated(els.logSequence,          fmt(data.logSequence));
-  setValueAnimated(els.availability,         data.availability != null ? (data.availability * 100).toFixed(1) + '%' : '—');
-  setValueAnimated(els.performance,          data.performance  != null ? (data.performance  * 100).toFixed(1) + '%' : '—');
-  setValueAnimated(els.quality,              data.quality      != null ? (data.quality      * 100).toFixed(1) + '%' : '—');
-  setValueAnimated(els.oeeReal,              data.oee          != null ? (data.oee          * 100).toFixed(1) + '%' : '—');
 
   // Read result indicators
   const goodActive = data.lastReadGood;

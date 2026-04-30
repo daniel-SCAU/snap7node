@@ -12,6 +12,8 @@
  *    beforeDateDInt   %MD42      DInt   byte 42, 4 bytes
  *    prodDateDInt     %MD46      DInt   byte 46, 4 bytes
  *    bagNoDInt        %MD50      DInt   byte 50, 4 bytes
+ *    bagsPerMin       %MW54      Int    byte 54, 2 bytes
+ *    goodBadRatio     %MD62      Real   byte 62, 4 bytes
  *    mesBatch         %MD100     DInt   byte 100, 4 bytes
  *
  *  DB1:
@@ -20,17 +22,6 @@
  *    totalBags              DInt   offset 414
  *    lastReadGood           Bool   offset 418, bit 0
  *    lastReadBad            Bool   offset 418, bit 1
- *    LastGoodCountTotal     DInt   offset 456
- *    LastRejectCountTotal   DInt   offset 460
- *    DeltaGood              DInt   offset 464
- *    DeltaReject            DInt   offset 468
- *    InternalTimestamp_s    Real   offset 472
- *    LogTimer_s             Real   offset 476
- *    LogSequence            DInt   offset 480
- *    Availability           Real   offset 484
- *    Performance            Real   offset 488
- *    Quality                Real   offset 492
- *    OEE                    Real   offset 496
  */
 
 let snap7;
@@ -144,6 +135,8 @@ class PlcClient {
         { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 42,  Amount: 4 }, // beforeDateDInt MD42
         { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 46,  Amount: 4 }, // prodDateDInt MD46
         { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 50,  Amount: 4 }, // bagNoDInt MD50
+        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 54,  Amount: 2 }, // bagsPerMin MW54
+        { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 62,  Amount: 4 }, // goodBadRatio MD62
         { Area: AREA_MK, WordLen: WL_BYTE, DBNumber: 0, Start: 100, Amount: 4 }, // mesBatch MD100
         // DB1 reads
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 406, Amount: 4 }, // goodReads
@@ -156,18 +149,6 @@ class PlcClient {
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 428, Amount: 10 }, // LastBatchStartStr String[8]
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 438, Amount: 10 }, // LastBatchBestBeforeStr String[8]
         { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 448, Amount: 7  }, // lastBagNo String[5]
-        // DB1 OEE data
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 456, Amount: 4 }, // LastGoodCountTotal
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 460, Amount: 4 }, // LastRejectCountTotal
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 464, Amount: 4 }, // DeltaGood
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 468, Amount: 4 }, // DeltaReject
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 472, Amount: 4 }, // InternalTimestamp_s
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 476, Amount: 4 }, // LogTimer_s
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 480, Amount: 4 }, // LogSequence
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 484, Amount: 4 }, // Availability
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 488, Amount: 4 }, // Performance
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 492, Amount: 4 }, // Quality
-        { Area: AREA_DB, WordLen: WL_BYTE, DBNumber: 1, Start: 496, Amount: 4 }, // OEE
       ];
 
       // Split into chunks that fit within the PLC's PDU size. S7-300/400 PLCs
@@ -416,27 +397,18 @@ class PlcClient {
     const beforeDateBuf    = check(results[4], 4);
     const prodDateBuf      = check(results[5], 5);
     const bagNoBuf         = check(results[6], 6);
-    const mesBatchBuf      = check(results[7], 7);
-    const goodReadsBuf     = check(results[8], 8);
-    const badReadsBuf      = check(results[9], 9);
-    const totalBagsBuf     = check(results[10], 10);
-    const lastReadGoodBuf  = check(results[11], 11);
-    const lastReadBadBuf   = check(results[12], 12);
-    const batchStrBuf             = check(results[13], 13);
-    const lastBatchStartStrBuf    = check(results[14], 14);
-    const lastBatchBBStrBuf       = check(results[15], 15);
-    const lastBagNoBuf            = check(results[16], 16);
-    const lastGoodCountTotalBuf   = check(results[17], 17);
-    const lastRejectCountTotalBuf = check(results[18], 18);
-    const deltaGoodBuf            = check(results[19], 19);
-    const deltaRejectBuf          = check(results[20], 20);
-    const internalTimestampBuf    = check(results[21], 21);
-    const logTimerBuf             = check(results[22], 22);
-    const logSequenceBuf          = check(results[23], 23);
-    const availabilityBuf         = check(results[24], 24);
-    const performanceBuf          = check(results[25], 25);
-    const qualityBuf              = check(results[26], 26);
-    const oeeBuf                  = check(results[27], 27);
+    const bagsPerMinBuf    = check(results[7], 7);
+    const goodBadRatioBuf  = check(results[8], 8);
+    const mesBatchBuf      = check(results[9], 9);
+    const goodReadsBuf     = check(results[10], 10);
+    const badReadsBuf      = check(results[11], 11);
+    const totalBagsBuf     = check(results[12], 12);
+    const lastReadGoodBuf  = check(results[13], 13);
+    const lastReadBadBuf   = check(results[14], 14);
+    const batchStrBuf             = check(results[15], 15);
+    const lastBatchStartStrBuf    = check(results[16], 16);
+    const lastBatchBBStrBuf       = check(results[17], 17);
+    const lastBagNoBuf            = check(results[18], 18);
 
     return {
       triggerOffset:      triggerOffsetBuf.readInt16BE(0),
@@ -446,6 +418,8 @@ class PlcClient {
       beforeDateDInt:     beforeDateBuf.readInt32BE(0),
       prodDateDInt:       prodDateBuf.readInt32BE(0),
       bagNoDInt:          bagNoBuf.readInt32BE(0),
+      bagsPerMin:         bagsPerMinBuf.readInt16BE(0),
+      goodBadRatio:       goodBadRatioBuf.readFloatBE(0),
       mesBatch:           mesBatchBuf.readInt32BE(0),
       goodReads:          goodReadsBuf.readInt32BE(0),
       badReads:           badReadsBuf.readInt32BE(0),
@@ -456,17 +430,6 @@ class PlcClient {
       lastBatchStartStr:  this._decodeS7String(lastBatchStartStrBuf),
       lastBatchBBStr:     this._decodeS7String(lastBatchBBStrBuf),
       lastBagNo:          this._decodeS7String(lastBagNoBuf),
-      lastGoodCountTotal:   lastGoodCountTotalBuf.readInt32BE(0),
-      lastRejectCountTotal: lastRejectCountTotalBuf.readInt32BE(0),
-      deltaGood:            deltaGoodBuf.readInt32BE(0),
-      deltaReject:          deltaRejectBuf.readInt32BE(0),
-      internalTimestamp_s:  internalTimestampBuf.readFloatBE(0),
-      logTimer_s:           logTimerBuf.readFloatBE(0),
-      logSequence:          logSequenceBuf.readInt32BE(0),
-      availability:         availabilityBuf.readFloatBE(0),
-      performance:          performanceBuf.readFloatBE(0),
-      quality:              qualityBuf.readFloatBE(0),
-      oee:                  oeeBuf.readFloatBE(0),
     };
   }
 }

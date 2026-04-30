@@ -26,7 +26,7 @@
         :style="widgetStyle(widget)"
       >
         <VaCardTitle class="widget-card-title">
-          {{ widget.title }}
+          {{ widget.label }}
           <div v-if="editMode" class="flex gap-1 ml-auto">
             <VaButton size="small" preset="plain" icon="edit" @click="openEditWidgetModal(widget)" />
             <VaButton size="small" preset="plain" icon="delete" color="danger" @click="deleteWidget(widget)" />
@@ -41,7 +41,7 @@
     <!-- Add/Edit Widget Modal -->
     <VaModal v-model="showWidgetModal" :title="editingWidget ? 'Edit Widget' : 'Add Widget'" hide-default-actions>
       <div class="flex flex-col gap-3 mb-4">
-        <VaInput v-model="widgetForm.title" label="Widget Title" />
+        <VaInput v-model="widgetForm.label" label="Widget Title" />
         <VaSelect v-model="widgetForm.type" label="Widget Type" :options="widgetTypes" value-by="value" text-by="label" />
         <VaSelect v-model="widgetForm.tagName" label="PLC Tag" :options="tagOptions" value-by="value" text-by="label" clearable />
         <VaInput v-model="widgetForm.unit" label="Unit (optional)" placeholder="e.g. ms, %, bags" />
@@ -80,15 +80,15 @@ const tagOptions = computed(() => [
 
 const widgetTypes = [
   { label: 'Value Display', value: 'value' },
-  { label: 'Progress Bar',  value: 'bar' },
+  { label: 'Progress Bar',  value: 'bargraph' },
   { label: 'Gauge',         value: 'gauge' },
 ]
 
-const EMPTY_WIDGET_FORM = () => ({ title: '', type: 'value', tagName: '', unit: '' })
+const EMPTY_WIDGET_FORM = () => ({ label: '', type: 'value', tagName: '', unit: '' })
 const widgetForm = ref(EMPTY_WIDGET_FORM())
 
 function widgetComponent(w) {
-  if (w.type === 'bar')   return BarWidget
+  if (w.type === 'bargraph') return BarWidget
   if (w.type === 'gauge') return GaugeWidget
   return ValueWidget
 }
@@ -117,21 +117,40 @@ function openAddWidgetModal() {
 
 function openEditWidgetModal(w) {
   editingWidget.value = w
-  widgetForm.value = { title: w.title, type: w.type, tagName: w.tagName || '', unit: w.unit || '' }
+  widgetForm.value = { label: w.label, type: w.type, tagName: w.tagName || '', unit: w.config?.unit || '' }
   showWidgetModal.value = true
 }
 
 async function saveWidget() {
-  if (!widgetForm.value.title) { toast({ message: 'Title is required', color: 'warning' }); return }
+  if (!widgetForm.value.label) { toast({ message: 'Title is required', color: 'warning' }); return }
   try {
     let res
     if (editingWidget.value) {
+      const payload = {
+        id: editingWidget.value.id,
+        label: widgetForm.value.label,
+        type: widgetForm.value.type,
+        tagName: widgetForm.value.tagName || undefined,
+        w: editingWidget.value.w || 3,
+        h: editingWidget.value.h || 2,
+        config: { unit: widgetForm.value.unit },
+      }
       res = await fetch(`/api/widgets/${editingWidget.value.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(widgetForm.value),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
     } else {
+      const id = 'widget-' + Date.now()
+      const payload = {
+        id,
+        label: widgetForm.value.label,
+        type: widgetForm.value.type,
+        tagName: widgetForm.value.tagName || undefined,
+        w: 3,
+        h: 2,
+        config: { unit: widgetForm.value.unit },
+      }
       res = await fetch('/api/widgets', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(widgetForm.value),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
     }
     const json = await res.json()

@@ -1,7 +1,7 @@
 <template>
   <div class="text-center py-2">
     <div class="va-h3 font-mono">{{ displayValue }}</div>
-    <div v-if="widget.unit" class="va-text-secondary text-sm">{{ widget.unit }}</div>
+    <div v-if="widget.config?.unit" class="va-text-secondary text-sm">{{ widget.config.unit }}</div>
   </div>
 </template>
 <script setup>

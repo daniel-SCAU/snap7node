@@ -186,7 +186,7 @@ async function confirmDelete() {
 
 async function readTag(tag) {
   try {
-    const res = await fetch(`/api/tags/${tag.name}/read`)
+    const res = await fetch(`/api/tags/${tag.name}/value`)
     const json = await res.json()
     if (json.ok) {
       tag.value = json.value
@@ -207,7 +207,7 @@ async function writeTag(tag) {
   else value = parseInt(raw, 10)
 
   try {
-    const res = await fetch(`/api/tags/${tag.name}/write`, {
+    const res = await fetch(`/api/tags/${tag.name}/value`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value }),

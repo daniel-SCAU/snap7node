@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="flex justify-between mb-1">
-      <span class="va-text-secondary text-sm">{{ displayValue }}{{ widget.unit ? ' ' + widget.unit : '' }}</span>
+      <span class="va-text-secondary text-sm">{{ displayValue }}{{ widget.config?.unit ? ' ' + widget.config.unit : '' }}</span>
       <span class="va-text-secondary text-sm">{{ pct }}%</span>
     </div>
     <VaProgressBar :model-value="pct" color="primary" />

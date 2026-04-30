@@ -1,24 +1,25 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-4">
+    <div class="tech-header">
       <div>
         <h2 class="va-h4">Technical Tag Manager</h2>
-        <p class="va-text-secondary">Create, read and write PLC tags on the Siemens S7-1200.</p>
+        <p class="va-text-secondary text-sm">Create, read and write PLC tags on the Siemens S7-1200.</p>
       </div>
-      <VaButton @click="openAddModal" icon="add">Add Tag</VaButton>
+      <div class="flex gap-2">
+        <VaButton preset="secondary" @click="readAllTags" icon="refresh" size="small">Read All</VaButton>
+        <VaButton @click="openAddModal" icon="add" size="small">Add Tag</VaButton>
+      </div>
     </div>
 
-    <VaCard class="mb-4">
-      <VaCardTitle>Defined Tags</VaCardTitle>
+    <VaCard>
       <VaCardContent style="padding:0">
         <VaDataTable
           :items="tags"
           :columns="columns"
           :loading="loading"
-          class="tag-table"
         >
           <template #cell(value)="{ rowData }">
-            <span :class="rowData.value != null ? 'font-mono' : 'va-text-secondary'">
+            <span :class="rowData.value != null ? 'font-mono value-cell' : 'va-text-secondary'">
               {{ rowData.value != null ? String(rowData.value) : '—' }}
             </span>
           </template>
@@ -41,8 +42,6 @@
         </VaDataTable>
       </VaCardContent>
     </VaCard>
-
-    <VaButton preset="secondary" @click="readAllTags" icon="refresh">Read All Tags</VaButton>
 
     <!-- Add / Edit Tag Modal -->
     <VaModal v-model="showTagModal" :title="editingTag ? 'Edit Tag' : 'Add Tag'" hide-default-actions>
@@ -84,7 +83,7 @@ const { init: initToast } = useToast()
 const toast = initToast()
 const { socket } = useSocket()
 
-const tags = ref([])
+const tags    = ref([])
 const loading = ref(false)
 
 const columns = [
@@ -98,13 +97,13 @@ const columns = [
 ]
 
 const datatypeOptions = [
-  { label: 'Bool (bit)',          value: 'Bool' },
-  { label: 'Byte (8-bit)',        value: 'Byte' },
-  { label: 'Word (16-bit unsigned)', value: 'Word' },
-  { label: 'Int (16-bit signed)', value: 'Int' },
+  { label: 'Bool (bit)',              value: 'Bool' },
+  { label: 'Byte (8-bit)',            value: 'Byte' },
+  { label: 'Word (16-bit unsigned)',  value: 'Word' },
+  { label: 'Int (16-bit signed)',     value: 'Int' },
   { label: 'DWord (32-bit unsigned)', value: 'DWord' },
-  { label: 'DInt (32-bit signed)',value: 'DInt' },
-  { label: 'Real (32-bit float)', value: 'Real' },
+  { label: 'DInt (32-bit signed)',    value: 'DInt' },
+  { label: 'Real (32-bit float)',     value: 'Real' },
 ]
 
 const areaOptions = [
@@ -112,10 +111,10 @@ const areaOptions = [
   { label: 'DB — Data Block',     value: 'DB' },
 ]
 
-const showTagModal   = ref(false)
+const showTagModal    = ref(false)
 const showDeleteModal = ref(false)
-const editingTag     = ref(null)
-const deletingTag    = ref(null)
+const editingTag      = ref(null)
+const deletingTag     = ref(null)
 
 const EMPTY_FORM = () => ({ name: '', datatype: 'Int', area: 'MK', dbNumber: 1, byteOffset: 0, bitOffset: 0 })
 const tagForm = ref(EMPTY_FORM())
@@ -143,17 +142,9 @@ async function saveTag() {
   try {
     let res
     if (editingTag.value) {
-      res = await fetch(`/api/tags/${editingTag.value.name}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      res = await fetch(`/api/tags/${editingTag.value.name}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     } else {
-      res = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      res = await fetch('/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
     const json = await res.json()
     if (json.ok) {
@@ -188,11 +179,8 @@ async function readTag(tag) {
   try {
     const res = await fetch(`/api/tags/${tag.name}/value`)
     const json = await res.json()
-    if (json.ok) {
-      tag.value = json.value
-    } else {
-      toast({ message: json.error || 'Read failed', color: 'danger' })
-    }
+    if (json.ok) { tag.value = json.value }
+    else toast({ message: json.error || 'Read failed', color: 'danger' })
   } catch (e) {
     toast({ message: 'Read error: ' + e.message, color: 'danger' })
   }
@@ -205,20 +193,13 @@ async function writeTag(tag) {
   if (tag.datatype === 'Bool') value = (raw === 'true' || raw === '1')
   else if (tag.datatype === 'Real') value = parseFloat(raw)
   else value = parseInt(raw, 10)
-
   try {
     const res = await fetch(`/api/tags/${tag.name}/value`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
     })
     const json = await res.json()
-    if (json.ok) {
-      toast({ message: 'Tag written successfully', color: 'success' })
-      await readTag(tag)
-    } else {
-      toast({ message: json.error || 'Write failed', color: 'danger' })
-    }
+    if (json.ok) { toast({ message: 'Tag written successfully', color: 'success' }); await readTag(tag) }
+    else toast({ message: json.error || 'Write failed', color: 'danger' })
   } catch (e) {
     toast({ message: 'Write error: ' + e.message, color: 'danger' })
   }
@@ -259,3 +240,8 @@ function onTagValues(values) {
 onMounted(() => { loadTags(); socket.on('tagValues', onTagValues) })
 onUnmounted(() => { socket.off('tagValues', onTagValues) })
 </script>
+
+<style scoped>
+.tech-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.value-cell { color: #2dd4bf; }
+</style>
